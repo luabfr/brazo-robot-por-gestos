@@ -5,7 +5,7 @@
 // No es un secreto (igual queda visible en la página publicada), pero las credenciales NUNCA van acá:
 // cada persona escribe su usuario y contraseña en la página al conectarse.
 export var CONFIG = {
-  brokerUrl: "wss://<EMQX_HOST>:8084/mqtt",
+  brokerUrl: "wss://d1a110a8.ala.us-east-1.emqxsl.com:8084/mqtt",
   topicRoot: "robotica",     // Primer nivel de todos los topics; las reglas de permisos de EMQX usan este nombre
   defaultRoom: "clase",      // Sala que propone el formulario; cada curso puede usar la suya
   remoteSendIntervalMs: 200, // EMQX Serverless permite 10 publicaciones/s por cliente: 5 por segundo deja margen

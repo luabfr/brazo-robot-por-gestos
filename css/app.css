@@ -58,6 +58,38 @@
   }
 }
 
+/* Paleta del emisor (alumnos): azul índigo, análoga del verde azulado del receptor.
+   Sirve para distinguir las dos páginas a simple vista. Se descartó la complementaria (coral/rojo)
+   porque se confunde con los colores de aviso, error y LED encendido.
+   Contraste verificado (WCAG AA, mínimo 4,5:1) en todas las combinaciones de texto y fondo. */
+.theme-emisor {
+  --bg: #eef1fb;
+  --card: #ffffff;
+  --text: #1a1f33;
+  --muted: #566080;
+  --accent: #3b5bdb;
+  --accent-hover: #2f48b4;
+  --accent-text: #ffffff;
+  --border: #d3daf2;
+  --shadow: 0 10px 30px rgba(30, 45, 120, 0.1);
+  --log-bg: #f5f7fe;
+}
+
+@media (prefers-color-scheme: dark) {
+  .theme-emisor {
+    --bg: #0d1120;
+    --card: #151b2f;
+    --text: #e8ecf8;
+    --muted: #9ba5c4;
+    --accent: #8fa3ff;
+    --accent-hover: #aab9ff;
+    --accent-text: #0d1120;
+    --border: #283255;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    --log-bg: #0f1427;
+  }
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -107,6 +139,11 @@ h1 {
 
 .tagline {
   color: var(--muted);
+}
+
+/* El azul por defecto del navegador casi no se ve en modo oscuro: los enlaces usan el acento de cada página */
+.tagline a {
+  color: var(--accent);
 }
 
 .section-label {
@@ -676,7 +713,7 @@ h1 {
   .log-list {
     flex: 1 1 0;
     height: auto;
-    min-height: 72px;
+    min-height: 68px;
   }
 }
 
@@ -781,7 +818,7 @@ h1 {
 /* Formulario de conexión al broker: tantos campos por fila como entren (todos en una fila si hay lugar) */
 .connect-form {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
   gap: 8px 12px;
   margin-top: 12px;
 }
@@ -856,6 +893,11 @@ h1 {
   color: var(--muted);
 }
 
+/* display: flex anularía el atributo hidden */
+.role-row[hidden] {
+  display: none;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
@@ -923,6 +965,12 @@ h1 {
 }
 
 @media (min-width: 1180px) and (min-height: 540px) {
+  /* En columnas la separación la da el gap. .panel se define después de ".column > *" y le ganaría
+     por orden con la misma especificidad: por eso esta regla es más específica */
+  .column > .panel {
+    margin-top: 0;
+  }
+
   /* El registro del emisor y la lista de alumnos del receptor usan todo el alto que queda */
   .log-panel,
   .students {

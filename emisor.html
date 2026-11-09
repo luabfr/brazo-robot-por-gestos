@@ -8,7 +8,7 @@
   <link rel="icon" href="data:," />
   <link rel="stylesheet" href="css/app.css" />
 </head>
-<body>
+<body class="theme-emisor">
   <main class="app">
     <header class="app-header">
       <h1>Emisor</h1>
@@ -145,7 +145,8 @@
           </div>
         </form>
 
-        <p class="role-row">
+        <!-- Solo se muestra con la conexión activa: sin conexión repetiría lo que ya dice el estado -->
+        <p class="role-row" id="roleRow" hidden>
           <span class="badge" id="controlBadge">Sin conexión</span>
           <span id="receiverStatus">Profesor: sin datos</span>
           <span id="sentRateValue"></span>
@@ -198,6 +199,7 @@
     var mqttConnectButton = document.getElementById("mqttConnectButton");
     var mqttStatusDot = document.getElementById("mqttStatusDot");
     var mqttStatus = document.getElementById("mqttStatus");
+    var roleRow = document.getElementById("roleRow");
     var controlBadge = document.getElementById("controlBadge");
     var receiverStatus = document.getElementById("receiverStatus");
     var sentRateValue = document.getElementById("sentRateValue");
@@ -271,6 +273,7 @@
 
     function renderRole() {
       var isConnected = connectionState === "connected";
+      roleRow.hidden = !isConnected;
       controlBadge.classList.toggle("is-active", isConnected && hasControl);
       controlBadge.classList.toggle("is-waiting", isConnected && !hasControl);
       controlBadge.textContent = !isConnected ? "Sin conexión" : hasControl ? "Tienes el control" : "En espera";

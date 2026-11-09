@@ -38,6 +38,7 @@ export function buildTopics(root, room) {
     allStudentStatus: base + "/alumnos/+/estado",
     control: base + "/control",
     leds: base + "/leds",
+    arm: base + "/brazo",
     receiver: base + "/receptor"
   };
 }

@@ -18,6 +18,25 @@ export var GESTURE_LABELS = {
 
 var DATA_PATTERN = /^X:(\d{1,3}) Y:(\d{1,3}) D:(\d) G:([A-Z]{1,11})$/;
 
+// Respuesta del sketch del brazo (arduino/brazo_2_motores): "OK: BRAZO <ESTADO> <ángulo motor 1> <ángulo motor 2>"
+var ARM_STATUS_PATTERN = /^OK: BRAZO (IZQUIERDA|DERECHA|QUIETO|TOPE|CENTRANDO) (\d{1,3}) (\d{1,3})$/;
+var ARM_STATE_LABELS = {
+  IZQUIERDA: "moviéndose a la izquierda",
+  DERECHA: "moviéndose a la derecha",
+  QUIETO: "quieto",
+  TOPE: "en el tope (no puede seguir)",
+  CENTRANDO: "volviendo al centro"
+};
+
+// Texto para la pantalla a partir de la respuesta del brazo, o null si la línea no es del brazo
+export function describeArmStatus(line) {
+  var match = ARM_STATUS_PATTERN.exec(String(line).trim());
+  if (!match) {
+    return null;
+  }
+  return "Brazo " + ARM_STATE_LABELS[match[1]] + " · motor 1: " + match[2] + "° · motor 2: " + match[3] + "°";
+}
+
 // Arma la línea a partir de los datos de la mano; en el sketch se puede leer con sscanf
 export function formatMessage(data) {
   if (!data.hasHand) {

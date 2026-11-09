@@ -126,6 +126,8 @@
           <span class="status-dot" id="statusDot" aria-hidden="true"></span>
           <span id="connectionStatus" aria-live="polite">Desconectado</span>
         </p>
+        <!-- Solo aparece con el sketch del brazo (arduino/brazo_2_motores); con el de LEDs queda oculto -->
+        <p class="device-status" id="armStatus" aria-live="polite" hidden></p>
 
         <div class="logger-header">
           <h3 class="section-label">Registro</h3>
@@ -153,7 +155,8 @@
     var log = createLogger(logList, "[arduino]");
 
     var tracker = initHandTracker({ sendIntervalMs: 100 });
-    var arduino = initSerialLink({ log: log, getCurrentMessage: tracker.getCurrentMessage });
+    // keepaliveMs: con la mano quieta se repite el estado; el sketch del brazo frena si deja de recibir mensajes
+    var arduino = initSerialLink({ log: log, getCurrentMessage: tracker.getCurrentMessage, keepaliveMs: 400 });
 
     // Cada mensaje de "Datos de control" se reenvía al Arduino si está conectado y listo
     window.addEventListener("handcontrol", function (event) {

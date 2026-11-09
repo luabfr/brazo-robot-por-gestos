@@ -1,11 +1,11 @@
 // Conexión con el Arduino por Web Serial: elegir y autorizar el puerto, conectar, leer las respuestas del sketch
 // y enviar mensajes. Lo usan hand-tracking.html (versión local) y receptor.html (versión remota).
 
-import { NO_HAND_MESSAGE } from "./protocol.js";
+import { NO_HAND_MESSAGE, describeArmStatus } from "./protocol.js";
 
 // ================= Conexión con el Arduino (Web Serial) =================
 
-var BAUD_RATE = 9600;          // Debe coincidir con Serial.begin(...) de arduino/hand_leds/hand_leds.ino
+var BAUD_RATE = 9600;          // Debe coincidir con Serial.begin(...) de los sketches de arduino/
 var MAX_LINE_LENGTH = 1024;    // Protege contra datos sin salto de línea que llenen la memoria
 var READY_TIMEOUT_MS = 3000;   // Si el Arduino no saluda en este tiempo, se habilita el envío igual
 var LED_COUNT = 3;             // LEDs del sketch; el Arduino confirma cada cambio con "OK: LEDS n"
@@ -26,6 +26,8 @@ var statusDot = document.getElementById("statusDot");
 var connectionStatus = document.getElementById("connectionStatus");
 var ledIndicators = Array.prototype.slice.call(document.querySelectorAll("#serialLedRow .led-indicator"));
 var ledStatus = document.getElementById("ledStatus");
+var ledRow = document.getElementById("serialLedRow");
+var armStatus = document.getElementById("armStatus"); // Opcional: solo en las páginas que muestran el brazo
 var logTxCheckbox = document.getElementById("logTxCheckbox");
 
 // ================= Estado =================
@@ -40,7 +42,10 @@ var isSerialBusy = false;      // true mientras se abre o se cierra el puerto
 var isDeviceReady = false;     // true cuando el Arduino terminó de reiniciarse y acepta mensajes
 var readyTimer = null;         // Temporizador de respaldo para habilitar el envío
 var pendingSerialMessage = null;      // Próximo mensaje a escribir: solo se guarda el último
+var pendingIsKeepalive = false;       // true si el pendiente es un latido (no se muestra en el registro)
 var isWriting = false;                // true mientras hay una escritura en curso
+var lastWriteTime = 0;                // performance.now() de la última escritura
+var keepaliveMs = 0;                  // 0 = sin latido; se configura en initSerialLink()
 var writePromise = Promise.resolve(); // Se resuelve cuando terminan las escrituras pendientes
 var textEncoder = new TextEncoder();
 
@@ -50,6 +55,8 @@ var getCurrentMessage = function () {
   return NO_HAND_MESSAGE;
 };
 var onLedsConfirmed = function () {};
+var onArmStatus = function () {};
+var onDeviceReset = function () {};
 
 // ================= Arduino (Web Serial) =================
 
@@ -266,6 +273,17 @@ function setConfirmedLeds(count) {
   ledStatus.textContent = leds === null ? "LEDs sin confirmar" : leds + " de " + LED_COUNT + " LEDs encendidos";
 }
 
+// Muestra el estado que informa el sketch del brazo (null = no hay brazo o todavía no informó).
+// Con un brazo conectado se ocultan los LEDs: la página se adapta sola al sketch que tenga el Arduino.
+function setArmStatus(line) {
+  var description = line === null ? null : describeArmStatus(line);
+  ledRow.hidden = description !== null;
+  if (armStatus) {
+    armStatus.hidden = description === null;
+    armStatus.textContent = description || "";
+  }
+}
+
 // Habilita el envío (una sola vez por conexión) y manda enseguida el estado actual:
 // con la mano quieta no hay mensajes nuevos, y el Arduino igual tiene que saber qué mostrar
 function markDeviceReady(level, message) {
@@ -287,9 +305,11 @@ function resetDeviceState() {
   readyTimer = null;
   pendingSerialMessage = null;
   setConfirmedLeds(null);
+  setArmStatus(null);
+  onDeviceReset();
 }
 
-// Interpreta las respuestas del sketch para mostrar cuántos LEDs quedaron encendidos de verdad
+// Interpreta las respuestas del sketch para mostrar lo que hizo de verdad (LEDs encendidos o estado del brazo)
 function handleDeviceLine(line) {
   // La primera línea recibida tras el reinicio indica que el sketch ya está corriendo
   markDeviceReady("success", "El Arduino está listo; se envían los datos de la mano.");
@@ -299,6 +319,11 @@ function handleDeviceLine(line) {
   if (ledsMatch) {
     setConfirmedLeds(Number(ledsMatch[1]));
     onLedsConfirmed(Number(ledsMatch[1]));
+  } else if (describeArmStatus(text)) {
+    setArmStatus(text);
+    onArmStatus(text);
+  } else if (/^AVISO:/i.test(text)) {
+    log("warn", "El Arduino avisa: " + text.replace(/^AVISO:\s*/i, ""));
   } else if (/^ERROR:/i.test(text)) {
     log("warn", "El Arduino rechazó un mensaje: " + text);
   }
@@ -306,8 +331,10 @@ function handleDeviceLine(line) {
 
 // Deja un mensaje listo para enviar. Si el puerto todavía está escribiendo, reemplaza al pendiente:
 // para manejar LEDs (o un servo) importa el último estado, no la historia, y así nunca se acumula atraso.
-function queueSerialMessage(message) {
+// isKeepalive: es un latido que repite el estado actual (no se muestra en el registro)
+function queueSerialMessage(message, isKeepalive) {
   pendingSerialMessage = message;
+  pendingIsKeepalive = Boolean(isKeepalive);
   if (!isWriting) {
     writePromise = flushSerialMessages();
   }
@@ -320,6 +347,7 @@ async function flushSerialMessages() {
   try {
     while (pendingSerialMessage !== null) {
       var message = pendingSerialMessage;
+      var isKeepalive = pendingIsKeepalive;
       pendingSerialMessage = null;
 
       var port = activePort;
@@ -331,7 +359,8 @@ async function flushSerialMessages() {
       var writer = port.writable.getWriter();
       try {
         await writer.write(textEncoder.encode(message + "\n"));
-        if (logTxCheckbox.checked) {
+        lastWriteTime = performance.now();
+        if (logTxCheckbox.checked && !isKeepalive) {
           log("tx", message);
         }
       } catch (error) {
@@ -438,13 +467,31 @@ function send(message) {
 
 // ================= Arranque =================
 
+// Latido: si el puerto estuvo sin escribir keepaliveMs, se repite el estado actual. Sin esto, con la mano quieta
+// no habría mensajes y el sketch del brazo frenaría los motores por su "hombre muerto".
+function sendKeepalive() {
+  var isIdle = !isWriting && pendingSerialMessage === null && performance.now() - lastWriteTime >= keepaliveMs;
+  if (activePort && isDeviceReady && !isSerialBusy && isIdle) {
+    queueSerialMessage(getCurrentMessage(), true);
+  }
+}
+
 // options.log: función de registro (createLogger). options.getCurrentMessage: estado a enviar al conectar.
-// options.onLedsConfirmed(n): se llama cuando el Arduino confirma cuántos LEDs encendió.
+// options.onLedsConfirmed(n): el Arduino confirmó cuántos LEDs encendió.
+// options.onArmStatus(línea): el brazo informó su estado ("OK: BRAZO IZQUIERDA 72 72").
+// options.onDeviceReset(): se desconectó el Arduino; lo que había informado ya no vale.
+// options.keepaliveMs: cada cuánto repetir el estado actual sin cambios (0 = nunca).
 export function initSerialLink(options) {
   options = options || {};
   log = options.log || log;
   getCurrentMessage = options.getCurrentMessage || getCurrentMessage;
   onLedsConfirmed = options.onLedsConfirmed || onLedsConfirmed;
+  onArmStatus = options.onArmStatus || onArmStatus;
+  onDeviceReset = options.onDeviceReset || onDeviceReset;
+  keepaliveMs = Number(options.keepaliveMs) > 0 ? Number(options.keepaliveMs) : 0;
+  if (keepaliveMs) {
+    setInterval(sendKeepalive, Math.max(100, keepaliveMs / 2));
+  }
 
   connectButton.addEventListener("click", function () {
     if (activePort) {
@@ -461,6 +508,7 @@ export function initSerialLink(options) {
   renderPortOptions();
   updateSerialUi();
   setConfirmedLeds(null);
+  setArmStatus(null);
 
   if (!window.isSecureContext) {
     log("error", "La página no está en un origen seguro. Ábrela desde http://localhost o HTTPS " +

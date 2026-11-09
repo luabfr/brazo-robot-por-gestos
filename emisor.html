@@ -151,6 +151,8 @@
           <span id="receiverStatus">Profesor: sin datos</span>
           <span id="sentRateValue"></span>
         </p>
+        <!-- Estado del brazo del profesor: solo aparece si su Arduino tiene el sketch del brazo -->
+        <p class="device-status" id="remoteArmStatus" hidden></p>
       </section>
 
       <section class="panel log-panel" aria-label="Registro de eventos">
@@ -175,13 +177,18 @@
     import { createLogger } from "./js/logger.js";
     import { CONFIG } from "./js/config.js";
     import { NAME_PATTERN, normalizeName, buildTopics, checkBrokerUrl, createMqttLink } from "./js/mqtt-link.js";
-    import { NO_HAND_MESSAGE } from "./js/protocol.js";
+    import { NO_HAND_MESSAGE, describeArmStatus } from "./js/protocol.js";
 
     // Solo se recuerdan datos que no son secretos; la contraseña la guarda el navegador si el usuario lo acepta
     var FORM_STORAGE_KEY = "brazo-robot.emisor.form";
     var LED_COUNT = 3;
     var LEDS_PATTERN = /^OK: LEDS (\d+)$/;
     var RATE_INTERVAL_MS = 1000;
+    // Latido: con el control y la mano quieta se repite el estado cada segundo. Así el receptor distingue
+    // "la mano no se mueve" de "se cortó el alumno" (si pasan 3 s sin nada, detiene el robot)
+    var HEARTBEAT_MS = 1000;
+    // Con el brazo conectado solo importa el gesto: esta ayuda reemplaza a la de X/Y
+    var ARM_HINT = "El brazo solo mira el gesto: mano cerrada = izquierda, mano abierta = derecha, cualquier otro gesto = quieto.";
     var STATE_LABELS = {
       disconnected: "Desconectado",
       connecting: "Conectando…",
@@ -205,18 +212,23 @@
     var sentRateValue = document.getElementById("sentRateValue");
     var remoteLeds = Array.prototype.slice.call(document.querySelectorAll("#remoteLedRow .led-indicator"));
     var remoteLedStatus = document.getElementById("remoteLedStatus");
+    var remoteLedRow = document.getElementById("remoteLedRow");
+    var remoteArmStatus = document.getElementById("remoteArmStatus");
+    var controlHint = document.getElementById("controlHint");
     var logTxCheckbox = document.getElementById("logTxCheckbox");
     var clearLogButton = document.getElementById("clearLogButton");
     var logList = document.getElementById("logList");
 
     var log = createLogger(logList, "[emisor]");
     var tracker = initHandTracker({ sendIntervalMs: CONFIG.remoteSendIntervalMs });
+    var defaultControlHint = controlHint.textContent; // La ayuda de X/Y que arma initHandTracker()
 
     var session = null;        // { room, alias, topics } desde que se pide la conexión hasta que se cierra
     var connectionState = "disconnected";
     var hasControl = false;    // true mientras el profesor eligió a este alumno
     var receiverOnline = null; // null = todavía no se sabe
     var sentSinceRate = 0;
+    var lastPublishTime = 0;   // performance.now() de la última publicación de la mano
 
     var link = createMqttLink({
       log: log,
@@ -305,6 +317,7 @@
         hasControl = false;
         receiverOnline = null;
         setLeds(null);
+        setArmStatus(null);
       }
       renderRole();
     }
@@ -320,7 +333,8 @@
       var results = await Promise.all([
         link.subscribe(topics.control, 1),
         link.subscribe(topics.leds, 1),
-        link.subscribe(topics.receiver, 1)
+        link.subscribe(topics.receiver, 1),
+        link.subscribe(topics.arm, 1)
       ]);
       if (results.every(Boolean)) {
         log("info", "Esperando que el profesor te dé el control…");
@@ -350,6 +364,8 @@
       } else if (topic === topics.leds) {
         var match = LEDS_PATTERN.exec(value);
         setLeds(match ? Math.min(Number(match[1]), LED_COUNT) : null);
+      } else if (topic === topics.arm) {
+        setArmStatus(value || null);
       } else if (topic === topics.receiver) {
         receiverOnline = value === "online";
         renderRole();
@@ -364,6 +380,7 @@
       link.publish(session.topics.studentHand(session.alias), message, { qos: 0 }).then(function (isSent) {
         if (isSent) {
           sentSinceRate++;
+          lastPublishTime = performance.now();
           if (logTxCheckbox.checked) {
             log("tx", message);
           }
@@ -374,6 +391,23 @@
     // Con la pestaña oculta el navegador pausa la detección: el último gesto quedaría "congelado" en el robot
     function publishCurrentState() {
       publishHand(document.hidden ? NO_HAND_MESSAGE : tracker.getCurrentMessage());
+    }
+
+    // Repite el estado solo si no se publicó nada en el último segundo: con la mano en movimiento no agrega mensajes
+    function sendHeartbeat() {
+      if (hasControl && !document.hidden && performance.now() - lastPublishTime >= HEARTBEAT_MS) {
+        publishHand(tracker.getCurrentMessage());
+      }
+    }
+
+    // Lo que informa el brazo del profesor (null = no hay brazo conectado). Con brazo se ocultan los LEDs
+    // y la ayuda explica los gestos en lugar de X/Y
+    function setArmStatus(line) {
+      var description = line ? describeArmStatus(line) : null;
+      remoteArmStatus.hidden = description === null;
+      remoteArmStatus.textContent = description || "";
+      remoteLedRow.hidden = description !== null;
+      controlHint.textContent = description ? ARM_HINT : defaultControlHint;
     }
 
     function connect() {
@@ -458,6 +492,8 @@
       log("info", "Registro limpiado.");
     });
 
+    setInterval(sendHeartbeat, HEARTBEAT_MS / 10); // Se revisa seguido para que el latido no se atrase más de 0,1 s
+
     setInterval(function () {
       sentRateValue.textContent = connectionState === "connected" && hasControl
         ? "Enviando " + Math.round(sentSinceRate * 1000 / RATE_INTERVAL_MS) + " msg/s"
@@ -473,6 +509,7 @@
     usernameInput.value = stored.username || "";
     brokerInput.value = stored.broker || CONFIG.brokerUrl;
     setLeds(null);
+    setArmStatus(null);
     renderRole();
     log("info", "Escribe la sala, tu alias y las credenciales que te dio el profesor, y pulsa «Conectar».");
   </script>

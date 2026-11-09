@@ -113,6 +113,8 @@
           <span class="status-dot" id="statusDot" aria-hidden="true"></span>
           <span id="connectionStatus" aria-live="polite">Desconectado</span>
         </p>
+        <!-- Solo aparece con el sketch del brazo (arduino/brazo_2_motores); con el de LEDs queda oculto -->
+        <p class="device-status" id="armStatus" aria-live="polite" hidden></p>
 
         <div class="logger-header">
           <h3 class="section-label">Registro</h3>
@@ -141,6 +143,11 @@
     var FORM_STORAGE_KEY = "brazo-robot.receptor.form";
     var RATE_INTERVAL_MS = 1000;
     var MAX_LOGGED_TEXT = 60; // Un mensaje inválido se muestra recortado: puede ser cualquier cosa llegada por internet
+    // Latido hacia el Arduino: con la mano quieta se repite el estado (el sketch del brazo frena a los 1,5 s sin mensajes)
+    var SERIAL_KEEPALIVE_MS = 400;
+    // Si el alumno con el control deja de enviar (el emisor repite su estado cada 1 s), el robot pasa a SIN_MANO
+    var HAND_STALE_MS = 3000;
+    var STALE_CHECK_INTERVAL_MS = 500;
     var STATE_LABELS = {
       disconnected: "Desconectado",
       connecting: "Conectando…",
@@ -177,7 +184,9 @@
     var students = new Map();             // alias → true si está conectado
     var controller = null;                // alias del alumno que controla el robot (null = nadie)
     var currentMessage = NO_HAND_MESSAGE; // Último mensaje válido del alumno con el control
-    var lastConfirmedLeds = null;
+    var lastConfirmedLeds = null;         // Lo último que informó el Arduino: LEDs encendidos…
+    var lastArmStatus = null;             // …o estado del brazo ("OK: BRAZO IZQUIERDA 72 72")
+    var lastHandTime = 0;                 // performance.now() del último mensaje válido del alumno con el control
     var receivedSinceRate = 0;
 
     var arduino = initSerialLink({
@@ -185,7 +194,10 @@
       getCurrentMessage: function () {
         return currentMessage;
       },
-      onLedsConfirmed: publishLeds
+      onLedsConfirmed: publishLeds,
+      onArmStatus: publishArmStatus,
+      onDeviceReset: handleDeviceReset,
+      keepaliveMs: SERIAL_KEEPALIVE_MS
     });
 
     var link = createMqttLink({
@@ -347,6 +359,42 @@
       }
     }
 
+    // Los alumnos ven lo que hizo el brazo de verdad (dirección y ángulos)
+    function publishArmStatus(line) {
+      lastArmStatus = line;
+      if (session && link.isConnected()) {
+        link.publish(session.topics.arm, line, { qos: 1, retain: true });
+      }
+    }
+
+    // Publica lo que se sabe del Arduino; "" borra el valor retenido para que nadie vea un estado viejo
+    function publishDeviceState() {
+      if (!session || !link.isConnected()) {
+        return;
+      }
+      link.publish(session.topics.leds, lastConfirmedLeds !== null ? "OK: LEDS " + lastConfirmedLeds : "", { qos: 1, retain: true });
+      link.publish(session.topics.arm, lastArmStatus || "", { qos: 1, retain: true });
+    }
+
+    // Se desconectó el Arduino: lo que había informado ya no vale
+    function handleDeviceReset() {
+      lastConfirmedLeds = null;
+      lastArmStatus = null;
+      publishDeviceState();
+    }
+
+    // "Hombre muerto" del lado del receptor: si el alumno con el control deja de enviar (se le colgó la cámara,
+    // perdió internet y el broker todavía no lo notó), el robot no sigue con el último gesto
+    function checkStaleHand() {
+      if (!controller || currentMessage === NO_HAND_MESSAGE) {
+        return;
+      }
+      if (performance.now() - lastHandTime > HAND_STALE_MS) {
+        log("warn", "No llegan datos de «" + controller + "» hace " + HAND_STALE_MS / 1000 + " s: el robot se detiene.");
+        resetToNoHand();
+      }
+    }
+
     async function giveControl(alias) {
       if (!session || !link.isConnected() || controller === alias) {
         return;
@@ -354,6 +402,7 @@
       var topics = session.topics;
       var previous = controller;
       controller = alias; // Desde ahora solo se aceptan datos de este alumno
+      lastHandTime = performance.now();
       renderController();
       renderStudents();
 
@@ -399,9 +448,7 @@
       // Al entrar se borra el control anterior (""); al reconectar se reafirma y el alumno reenvía su estado actual
       await link.publish(topics.control, controller || "", { qos: 1, retain: true });
 
-      if (lastConfirmedLeds !== null) {
-        publishLeds(lastConfirmedLeds);
-      }
+      publishDeviceState();
       renderController();
       renderStudents();
     }
@@ -459,6 +506,7 @@
       }
 
       currentMessage = formatMessage(data);
+      lastHandTime = performance.now();
       receivedSinceRate++;
       renderReceived(data, currentMessage);
       arduino.send(currentMessage);
@@ -530,6 +578,8 @@
       logList.textContent = "";
       log("info", "Registro limpiado.");
     });
+
+    setInterval(checkStaleHand, STALE_CHECK_INTERVAL_MS);
 
     setInterval(function () {
       receivedRateValue.textContent = controller

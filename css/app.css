@@ -96,6 +96,11 @@
   padding: 0;
 }
 
+/* Los elementos con display: flex o grid anularían el atributo hidden: esta regla lo hace valer siempre */
+[hidden] {
+  display: none !important;
+}
+
 body {
   min-height: 100vh;
   display: flex;
@@ -473,6 +478,17 @@ h1 {
 
 .connection-status {
   margin-top: 8px;
+}
+
+/* Estado del brazo robot que informa el Arduino (dirección y ángulo de cada motor) */
+.device-status {
+  margin-top: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .status-dot {
@@ -891,11 +907,6 @@ h1 {
   margin-top: 8px;
   font-size: 0.9rem;
   color: var(--muted);
-}
-
-/* display: flex anularía el atributo hidden */
-.role-row[hidden] {
-  display: none;
 }
 
 .badge {

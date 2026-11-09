@@ -1,0 +1,1088 @@
+/* Estilos compartidos por todas las páginas del proyecto (versión local, emisor y receptor) */
+
+/* Paleta de colores: modo claro por defecto (misma base que index.html) */
+:root {
+  --bg: #f4f6fb;
+  --card: #ffffff;
+  --text: #1b1f2a;
+  --muted: #5b6475;
+  --accent: #0f8b8d;
+  --accent-hover: #0b6f71;
+  --accent-text: #ffffff;
+  --border: #dfe3ec;
+  --shadow: 0 10px 30px rgba(20, 30, 60, 0.08);
+
+  /* Mensajes de estado */
+  --status-success: #1e7d3a;
+  --status-warn: #a15c00;
+  --status-error: #c0262d;
+
+  /* Escenario del video: siempre oscuro para que el dibujo resalte */
+  --stage-bg: #0b0e13;
+  --stage-text: #9aa3b5;
+
+  /* Conexión con el Arduino (mismos colores que index.html) */
+  --status-off: #9aa3b5;
+  --status-busy: #d08a00;
+  --status-on: #1e9e4a;
+  --led-on: #f2a900;
+  --log-bg: #f7f8fb;
+  --log-rx: #0f6f8d;
+  --log-tx: #6b3fb0;
+}
+
+/* Modo oscuro según la preferencia del sistema */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f131a;
+    --card: #171c25;
+    --text: #e9edf4;
+    --muted: #9aa3b5;
+    --accent: #2bb6b8;
+    --accent-hover: #4fcacc;
+    --accent-text: #0f131a;
+    --border: #2a3140;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+
+    --status-success: #5fd38a;
+    --status-warn: #f0b44c;
+    --status-error: #ff7b7f;
+
+    --status-off: #5b6475;
+    --status-busy: #f0b44c;
+    --status-on: #5fd38a;
+    --led-on: #ffc233;
+    --log-bg: #10141b;
+    --log-rx: #5cc8e6;
+    --log-tx: #b99bf0;
+  }
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  padding: 24px 16px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.5;
+}
+
+.app {
+  width: 100%;
+  max-width: 960px;
+  padding: 28px 24px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+}
+
+@media (max-width: 480px) {
+  .app {
+    padding: 20px 16px;
+  }
+}
+
+h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* Título y descripción en una línea; en pantallas angostas la descripción baja sola */
+.app-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+}
+
+.tagline {
+  color: var(--muted);
+}
+
+.section-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Barra de controles: botón principal y opciones de dibujo */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  margin-top: 20px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  min-width: 180px;
+  padding: 12px 20px;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s, transform 0.1s;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--accent-text);
+  border: 2px solid var(--accent);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.toggle input:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.status {
+  min-height: 1.5em;
+  margin-top: 12px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.status-success { color: var(--status-success); }
+.status-warn { color: var(--status-warn); }
+.status-error { color: var(--status-error); }
+
+.stage-area {
+  margin-top: 16px;
+}
+
+/* Escenario: el video y el canvas se apilan con el mismo tamaño para que los nodos coincidan */
+.stage {
+  --video-ratio: 1.7778; /* 16:9; se reemplaza por la proporción real de la cámara al iniciar */
+  position: relative;
+  width: 100%;
+  aspect-ratio: var(--video-ratio);
+  max-height: 70vh;
+  overflow: hidden;
+  background: var(--stage-bg);
+  border-radius: 16px;
+}
+
+.stage video,
+.stage canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Solo se espeja el video; el canvas espeja las coordenadas para que los textos se lean bien */
+.stage.is-mirrored video {
+  transform: scaleX(-1);
+}
+
+.stage-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  text-align: center;
+  color: var(--stage-text);
+}
+
+.stage.is-live .stage-placeholder {
+  display: none;
+}
+
+/* Indicadores: manos detectadas, cuadros por segundo y procesador usado */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.stat {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg);
+}
+
+.stat-value {
+  display: block;
+  margin-top: 2px;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Coordenadas de la punta del índice de cada mano */
+.hand-data {
+  margin-top: 20px;
+}
+
+.hand-data-list {
+  list-style: none;
+  margin-top: 8px;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.hand-data-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.hand-data-list li:last-child {
+  border-bottom: 0;
+}
+
+/* Respeta los espacios de relleno de las coordenadas para que queden alineadas */
+.hand-data-list span {
+  white-space: pre;
+}
+
+.hand-name {
+  min-width: 16ch;
+  font-weight: 700;
+}
+
+.hand-empty {
+  color: var(--muted);
+}
+
+/* Selector del punto de control (misma apariencia que los campos de index.html) */
+.select {
+  min-height: 44px;
+  padding: 8px 12px;
+  font: inherit;
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.select:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Datos de control: X/Y, dedos, gesto y el mensaje que se enviará al Arduino */
+.control {
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+/* X, Y y Dedos son números cortos; el gesto es texto ("Mano abierta") y necesita más ancho */
+.control .stats {
+  grid-template-columns: repeat(3, minmax(0, 0.75fr)) minmax(0, 1.6fr);
+  margin-top: 8px;
+}
+
+/* El gesto es texto: más chico que los números pero con la misma altura, así las tarjetas quedan parejas */
+.stat-value-text {
+  font-size: 1.1rem;
+  line-height: 2.25rem;
+}
+
+.message {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-top: 12px;
+}
+
+.message-value {
+  padding: 4px 10px;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 0.95rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+
+.message-rate,
+.control-hint {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.control-hint {
+  margin-top: 8px;
+}
+
+/* Botones secundarios y compactos (mismo estilo que index.html) */
+.btn-secondary {
+  background: transparent;
+  color: var(--accent);
+  border: 2px solid var(--accent);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.btn-small {
+  min-width: 0;
+  min-height: 44px;
+  padding: 6px 16px;
+  font-size: 0.9rem;
+  border-radius: 10px;
+}
+
+/* Conexión con el Arduino por Web Serial */
+.serial {
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.serial-header,
+.logger-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.port-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.port-row .select {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.connection-status,
+.led-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.connection-status {
+  margin-top: 8px;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--status-off);
+}
+
+.status-dot.is-busy {
+  background: var(--status-busy);
+}
+
+.status-dot.is-connected {
+  background: var(--status-on);
+}
+
+/* LEDs confirmados por el Arduino: punteado = desconocido, vacío = apagado, relleno con brillo = encendido */
+.led-indicator {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px dashed var(--status-off);
+  background: transparent;
+  transition: background-color 0.2s, box-shadow 0.2s;
+}
+
+.led-indicator.is-off {
+  border-style: solid;
+}
+
+.led-indicator.is-on {
+  border: 2px solid var(--led-on);
+  background: var(--led-on);
+  box-shadow: 0 0 10px var(--led-on);
+}
+
+.logger-header {
+  margin-top: 16px;
+  margin-bottom: 8px;
+}
+
+.logger-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.logger-actions .btn-small {
+  min-height: 32px;
+  padding: 4px 14px;
+  font-size: 0.85rem;
+  border-radius: 8px;
+}
+
+.toggle-small {
+  min-height: 32px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* Registro: lista de eventos con hora, nivel y mensaje */
+.log-list {
+  list-style: none;
+  height: 200px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  background: var(--log-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.log-entry {
+  display: grid;
+  grid-template-columns: auto 6ch 1fr;
+  gap: 8px;
+}
+
+.log-time {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.log-level {
+  font-weight: 700;
+}
+
+.log-message {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.log-info .log-level { color: var(--muted); }
+.log-success .log-level { color: var(--status-success); }
+.log-warn .log-level { color: var(--status-warn); }
+.log-error .log-level,
+.log-error .log-message { color: var(--status-error); }
+.log-rx .log-level { color: var(--log-rx); }
+.log-tx .log-level { color: var(--log-tx); }
+
+/* Oculta visualmente un elemento pero lo deja disponible para lectores de pantalla */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 480px) {
+  .btn {
+    width: 100%;
+  }
+
+  .stat-value {
+    font-size: 1.2rem;
+  }
+
+  .stat-value-text {
+    font-size: 1rem;
+    line-height: 1.8rem;
+  }
+
+  .control .stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* Los botones compactos conservan su ancho natural y se reparten la fila */
+  .btn-small {
+    width: auto;
+    flex: 1 1 auto;
+  }
+}
+
+/* Escritorio: dos columnas que ocupan exactamente la ventana, sin scroll vertical.
+   Izquierda: cámara y detección. Derecha: datos que se envían, conexión Web Serial y registro.
+   En pantallas más chicas (celular, ventana angosta o muy baja) se mantiene una sola columna con scroll:
+   por debajo de 1180 px de ancho las dos columnas quedan tan angostas que el video se vuelve muy chico. */
+@media (min-width: 1180px) and (min-height: 540px) {
+  body {
+    height: 100vh;
+    height: 100dvh;
+    padding: 16px;
+  }
+
+  .app {
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(380px, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 14px 20px;
+    max-width: 1680px;
+    height: 100%;
+    padding: 18px 24px 20px;
+  }
+
+  .app-header {
+    grid-column: 1 / -1;
+  }
+
+  /* Cada columna reparte su alto. Si la ventana es demasiado baja, hace scroll la columna, no la página.
+     El padding con margen negativo deja lugar al contorno de foco de los botones sin que se corte. */
+  .column {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+    margin: -6px;
+    padding: 6px;
+    overflow-y: auto;
+  }
+
+  .column > * {
+    margin-top: 0;
+  }
+
+  /* El video ocupa todo el alto libre y conserva la proporción de la cámara (100cqw/100cqh = tamaño del área) */
+  .stage-area {
+    flex: 1 1 0;
+    min-height: 160px;
+    display: grid;
+    place-items: center;
+    container-type: size;
+  }
+
+  .stage {
+    width: min(100cqw, calc(100cqh * var(--video-ratio)));
+    max-height: none;
+  }
+
+  /* Indicadores de la cámara en una sola línea (etiqueta y valor juntos): le dejan más alto al video */
+  .column-camera .stat {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+
+  .column-camera .stat-value {
+    margin-top: 0;
+    font-size: 1.15rem;
+  }
+
+  /* Las dos manos lado a lado, con el lugar reservado: el video no cambia de tamaño si aparece o desaparece una */
+  .hand-data-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 16px;
+    min-height: calc(0.85rem * 1.5 + 13px);
+  }
+
+  .hand-data-list li {
+    border-bottom: 0;
+  }
+
+  /* El selector de puerto cede ancho para que "Agregar" y "Conectar" entren en la misma fila */
+  .port-row .select {
+    flex-basis: 180px;
+  }
+
+  /* La tarjeta del Arduino se estira hasta abajo y el registro usa todo el espacio que queda */
+  .serial {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .log-list {
+    flex: 1 1 0;
+    height: auto;
+    min-height: 72px;
+  }
+}
+
+/* Ventanas de poca altura (p. ej. notebook de 1366×768 con la barra del navegador): todo más compacto
+   para que al video le quede más lugar */
+@media (min-width: 1180px) and (min-height: 540px) and (max-height: 820px) {
+  body {
+    padding: 10px;
+  }
+
+  .app {
+    gap: 10px 16px;
+    padding: 12px 18px 14px;
+  }
+
+  h1 {
+    font-size: 1.35rem;
+  }
+
+  .column {
+    gap: 10px;
+  }
+
+  .toolbar {
+    gap: 8px 16px;
+    font-size: 0.9rem;
+  }
+
+  .toolbar .btn {
+    min-width: 0;
+    min-height: 40px;
+    padding: 8px 16px;
+    font-size: 0.95rem;
+  }
+
+  .toggle {
+    min-height: 36px;
+  }
+
+  .select {
+    min-height: 38px;
+    padding: 6px 10px;
+  }
+
+  .btn-small {
+    min-height: 38px;
+  }
+
+  .stat {
+    padding: 6px 12px;
+  }
+
+  .stat-value {
+    font-size: 1.25rem;
+  }
+
+  .stat-value-text {
+    font-size: 1rem;
+    line-height: 1.875rem;
+  }
+
+  .control,
+  .serial {
+    padding: 12px;
+  }
+
+  .logger-header {
+    margin-top: 10px;
+    margin-bottom: 6px;
+  }
+
+  .control-hint {
+    font-size: 0.8rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .led-indicator {
+    transition: none;
+  }
+}
+
+/* ================= Versión remota: emisor y receptor ================= */
+
+/* Tarjeta genérica (misma apariencia que "Datos de control" y "Arduino") */
+.panel {
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.panel-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+/* Formulario de conexión al broker: tantos campos por fila como entren (todos en una fila si hay lugar) */
+.connect-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px 12px;
+  margin-top: 12px;
+}
+
+/* Con la conexión activa solo quedan el botón y el estado, que ya dice sala y alias: más lugar para lo demás */
+.connect-form.is-active .field {
+  display: none;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.field label,
+.field-advanced summary {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.field-wide {
+  grid-column: 1 / -1;
+}
+
+.field-advanced summary {
+  cursor: pointer;
+}
+
+.field-advanced .input {
+  margin-top: 4px;
+}
+
+.input {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 6px 10px;
+  font: inherit;
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.input:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.input:disabled {
+  opacity: 0.6;
+}
+
+.form-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+/* Estado del rol: quién tiene el control y si la otra punta está conectada */
+.role-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-top: 8px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.badge.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.badge.is-waiting {
+  border-color: var(--status-warn);
+  color: var(--status-warn);
+}
+
+/* Registro en su propia tarjeta (emisor) */
+.log-panel .logger-header {
+  margin-top: 0;
+}
+
+/* Lista de alumnos conectados (receptor) */
+.student-list {
+  list-style: none;
+  margin-top: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.student {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.student:last-child {
+  border-bottom: 0;
+}
+
+.student-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.student-empty {
+  padding: 8px 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.student .btn-small {
+  min-height: 34px;
+  padding: 4px 12px;
+}
+
+@media (min-width: 1180px) and (min-height: 540px) {
+  /* El registro del emisor y la lista de alumnos del receptor usan todo el alto que queda */
+  .log-panel,
+  .students {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .student-list {
+    flex: 1 1 0;
+    min-height: 60px;
+    max-height: none;
+  }
+}
+
+@media (min-width: 1180px) and (min-height: 540px) and (max-height: 820px) {
+  .panel {
+    padding: 12px;
+  }
+
+  .connect-form {
+    gap: 6px 10px;
+    margin-top: 8px;
+  }
+
+  .input {
+    min-height: 36px;
+    padding: 4px 10px;
+  }
+}
+
+/* ================= Portada (index.html) ================= */
+
+.landing {
+  width: 100%;
+  max-width: 980px;
+  margin: auto 0;
+  padding: 32px 28px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+}
+
+.landing h1 {
+  font-size: 2rem;
+}
+
+.landing-lead {
+  margin-top: 8px;
+  max-width: 62ch;
+  color: var(--muted);
+  font-size: 1.05rem;
+}
+
+.role-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.role-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--bg);
+  color: var(--text);
+  text-decoration: none;
+  transition: border-color 0.2s, transform 0.1s;
+}
+
+.role-card:hover {
+  border-color: var(--accent);
+}
+
+.role-card:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.role-card h2 {
+  font-size: 1.15rem;
+}
+
+.role-card p {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.role-card .role-link {
+  margin-top: auto;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.flow {
+  margin-top: 28px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.flow-steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  list-style: none;
+}
+
+.flow-step {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
+.flow-arrow {
+  color: var(--muted);
+}
+
+.landing-notes {
+  margin-top: 20px;
+  padding-left: 20px;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.landing-notes li + li {
+  margin-top: 4px;
+}
+
+.landing-footer {
+  margin-top: 24px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.landing-footer a {
+  color: var(--accent);
+}
+
+@media (max-width: 760px) {
+  .role-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .landing {
+    padding: 24px 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .role-card {
+    transition: none;
+  }
+}

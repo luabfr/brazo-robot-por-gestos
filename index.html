@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Control remoto de un robot con gestos de la mano: MediaPipe en el navegador, MQTT por internet y Arduino" />
+  <title>Brazo robot por gestos</title>
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+  <main class="landing">
+    <h1>Brazo robot por gestos</h1>
+    <p class="landing-lead">
+      Un alumno mueve la mano frente a su webcam y, a miles de kilómetros, un Arduino responde.
+      La detección corre en el navegador con MediaPipe, los datos viajan por internet con MQTT
+      y llegan al robot por USB con Web Serial.
+    </p>
+
+    <nav class="role-cards" aria-label="Elegir rol">
+      <a class="role-card" href="emisor.html">
+        <h2>Emisor</h2>
+        <p>Para los alumnos: tu cámara detecta la mano y envía la posición y el gesto cuando el profesor te da el control.</p>
+        <span class="role-link">Abrir el emisor →</span>
+      </a>
+      <a class="role-card" href="receptor.html">
+        <h2>Receptor</h2>
+        <p>Para el profesor: conecta el Arduino, elige qué alumno controla el robot y reenvía sus gestos por USB.</p>
+        <span class="role-link">Abrir el receptor →</span>
+      </a>
+      <a class="role-card" href="hand-tracking.html">
+        <h2>Versión local</h2>
+        <p>Cámara y Arduino en la misma PC, sin internet de por medio. Ideal para probar el montaje.</p>
+        <span class="role-link">Abrir la versión local →</span>
+      </a>
+    </nav>
+
+    <section class="flow" aria-label="Cómo funciona">
+      <h2 class="section-label">Cómo viajan los datos</h2>
+      <ol class="flow-steps">
+        <li class="flow-step">Webcam del alumno</li>
+        <li class="flow-arrow" aria-hidden="true">→</li>
+        <li class="flow-step">MediaPipe: X, Y, dedos y gesto</li>
+        <li class="flow-arrow" aria-hidden="true">→</li>
+        <li class="flow-step">Broker MQTT en la nube</li>
+        <li class="flow-arrow" aria-hidden="true">→</li>
+        <li class="flow-step">Página del profesor</li>
+        <li class="flow-arrow" aria-hidden="true">→</li>
+        <li class="flow-step">Arduino por USB</li>
+      </ol>
+    </section>
+
+    <ul class="landing-notes">
+      <li>El receptor y la versión local necesitan Chrome o Edge de escritorio (Web Serial).</li>
+      <li>El emisor necesita una webcam y un navegador actualizado.</li>
+      <li>El profesor entrega la sala, el usuario y la contraseña para conectarse al broker.</li>
+    </ul>
+
+    <p class="landing-footer">
+      Proyecto del curso de robótica con Arduino ·
+      <a href="https://github.com/luabfr/brazo-robot-por-gestos">código en GitHub</a>
+    </p>
+  </main>
+</body>
+</html>

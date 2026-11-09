@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Seguimiento de manos con la webcam (MediaPipe Hand Landmarker): posición X/Y y gestos para controlar un Arduino" />
+  <title>Seguimiento de manos</title>
+  <!-- Ícono vacío: evita que el navegador pida /favicon.ico y ensucie la consola con un 404 -->
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="app-header">
+      <h1>Seguimiento de manos</h1>
+      <p class="tagline">Webcam + MediaPipe Hand Landmarker · posición X/Y y gestos de la mano</p>
+    </header>
+
+    <!-- Columna izquierda: todo lo relacionado con la cámara y la detección -->
+    <div class="column column-camera">
+      <div class="toolbar">
+        <button type="button" class="btn btn-primary" id="cameraButton">Iniciar cámara</button>
+        <label class="toggle">
+          <input type="checkbox" id="showIndicesCheckbox" checked />
+          Números de nodo
+        </label>
+        <label class="toggle">
+          <input type="checkbox" id="mirrorCheckbox" checked />
+          Vista espejo
+        </label>
+        <label class="toggle">
+          Punto de control
+          <select class="select" id="controlPointSelect">
+            <option value="palm" selected>Centro de la palma</option>
+            <option value="index">Punta del índice</option>
+          </select>
+        </label>
+      </div>
+
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+
+      <!-- El video muestra la cámara; el canvas encima dibuja los nodos detectados.
+           stage-area es el espacio disponible; el escenario se ajusta adentro sin deformar la imagen -->
+      <div class="stage-area">
+        <section class="stage is-mirrored" id="stage" aria-label="Vista de la cámara con los nodos de las manos">
+          <video id="video" autoplay muted playsinline></video>
+          <canvas id="overlay"></canvas>
+          <p class="stage-placeholder" id="stagePlaceholder">Cámara apagada</p>
+        </section>
+      </div>
+
+      <section class="stats" aria-label="Indicadores">
+        <div class="stat">
+          <span class="section-label">Manos</span>
+          <span class="stat-value" id="handsValue">0</span>
+        </div>
+        <div class="stat">
+          <span class="section-label">FPS</span>
+          <span class="stat-value" id="fpsValue">–</span>
+        </div>
+        <div class="stat">
+          <span class="section-label">Procesador</span>
+          <span class="stat-value" id="delegateValue">–</span>
+        </div>
+      </section>
+
+      <!-- Sin aria-live a propósito: se actualiza varias veces por segundo y saturaría al lector de pantalla -->
+      <section class="hand-data" aria-label="Coordenadas de la punta del índice">
+        <h2 class="section-label">Punta del índice (nodo 8) · x, y de 0 a 1 según la vista · z relativa a la muñeca</h2>
+        <ul class="hand-data-list" id="handDataList"></ul>
+      </section>
+    </div>
+
+    <!-- Columna derecha: todo lo relacionado con el Arduino (qué se envía, conexión y registro) -->
+    <div class="column column-arduino">
+      <!-- Datos de control: lo que se envía al Arduino. Sin aria-live: cambia varias veces por segundo -->
+      <section class="control" aria-label="Datos de control">
+        <h2 class="section-label">Datos de control · lo que se enviará al Arduino</h2>
+        <div class="stats">
+          <div class="stat">
+            <span class="section-label">X</span>
+            <span class="stat-value" id="controlXValue">–</span>
+          </div>
+          <div class="stat">
+            <span class="section-label">Y</span>
+            <span class="stat-value" id="controlYValue">–</span>
+          </div>
+          <div class="stat">
+            <span class="section-label">Dedos</span>
+            <span class="stat-value" id="fingersValue">–</span>
+          </div>
+          <div class="stat">
+            <span class="section-label">Gesto</span>
+            <span class="stat-value stat-value-text" id="gestureValue">Sin mano</span>
+          </div>
+        </div>
+        <p class="message">
+          <span class="section-label">Mensaje</span>
+          <code class="message-value" id="messageValue">SIN_MANO</code>
+          <span class="message-rate" id="messageRateValue">– msg/s</span>
+        </p>
+        <p class="control-hint" id="controlHint"></p>
+      </section>
+
+      <!-- Conexión con el Arduino por Web Serial (mismo funcionamiento que index.html).
+           Cada mensaje de "Datos de control" se envía al sketch arduino/hand_leds/hand_leds.ino -->
+      <section class="serial" aria-label="Conexión con el Arduino">
+        <div class="serial-header">
+          <h2 class="section-label">Arduino · Web Serial</h2>
+          <p class="led-row" id="serialLedRow">
+            <span class="led-indicator" aria-hidden="true"></span>
+            <span class="led-indicator" aria-hidden="true"></span>
+            <span class="led-indicator" aria-hidden="true"></span>
+            <span id="ledStatus" aria-live="polite">LEDs sin confirmar</span>
+          </p>
+        </div>
+
+        <div class="port-row">
+          <label class="visually-hidden" for="portSelect">Puerto serie</label>
+          <select class="select" id="portSelect"></select>
+          <button type="button" class="btn btn-secondary btn-small" id="addPortButton"
+                  title="Abre el selector del navegador para autorizar un puerto COM">Agregar</button>
+          <button type="button" class="btn btn-primary btn-small" id="connectButton">Conectar Arduino</button>
+        </div>
+        <p class="connection-status">
+          <span class="status-dot" id="statusDot" aria-hidden="true"></span>
+          <span id="connectionStatus" aria-live="polite">Desconectado</span>
+        </p>
+
+        <div class="logger-header">
+          <h3 class="section-label">Registro</h3>
+          <div class="logger-actions">
+            <label class="toggle toggle-small">
+              <input type="checkbox" id="logTxCheckbox" />
+              Mostrar cada envío (TX)
+            </label>
+            <button type="button" class="btn btn-secondary btn-small" id="clearLogButton">Limpiar</button>
+          </div>
+        </div>
+        <ol class="log-list" id="logList" role="log"></ol>
+      </section>
+    </div>
+  </main>
+
+  <script type="module">
+    // Versión local: la cámara y el Arduino están en la misma PC, conectado por USB (sin internet de por medio)
+    import { initHandTracker } from "./js/hand-tracker.js";
+    import { initSerialLink } from "./js/serial-link.js";
+    import { createLogger } from "./js/logger.js";
+
+    var logList = document.getElementById("logList");
+    var clearLogButton = document.getElementById("clearLogButton");
+    var log = createLogger(logList, "[arduino]");
+
+    var tracker = initHandTracker({ sendIntervalMs: 100 });
+    var arduino = initSerialLink({ log: log, getCurrentMessage: tracker.getCurrentMessage });
+
+    // Cada mensaje de "Datos de control" se reenvía al Arduino si está conectado y listo
+    window.addEventListener("handcontrol", function (event) {
+      arduino.send(event.detail.message);
+    });
+
+    clearLogButton.addEventListener("click", function () {
+      logList.textContent = "";
+      log("info", "Registro limpiado.");
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Emisor: detecta la mano con la webcam (MediaPipe) y envía los datos por MQTT para controlar un robot a distancia" />
+  <title>Emisor · Brazo robot por gestos</title>
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="app-header">
+      <h1>Emisor</h1>
+      <p class="tagline">Tu mano controla el robot del profesor · MediaPipe + MQTT · <a href="index.html">volver al inicio</a></p>
+    </header>
+
+    <!-- Columna izquierda: todo lo relacionado con la cámara y la detección -->
+    <div class="column column-camera">
+      <div class="toolbar">
+        <button type="button" class="btn btn-primary" id="cameraButton">Iniciar cámara</button>
+        <label class="toggle">
+          <input type="checkbox" id="showIndicesCheckbox" checked />
+          Números de nodo
+        </label>
+        <label class="toggle">
+          <input type="checkbox" id="mirrorCheckbox" checked />
+          Vista espejo
+        </label>
+        <label class="toggle">
+          Punto de control
+          <select class="select" id="controlPointSelect">
+            <option value="palm" selected>Centro de la palma</option>
+            <option value="index">Punta del índice</option>
+          </select>
+        </label>
+      </div>
+
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+
+      <!-- El video muestra la cámara; el canvas encima dibuja los nodos detectados.
+           stage-area es el espacio disponible; el escenario se ajusta adentro sin deformar la imagen -->
+      <div class="stage-area">
+        <section class="stage is-mirrored" id="stage" aria-label="Vista de la cámara con los nodos de las manos">
+          <video id="video" autoplay muted playsinline></video>
+          <canvas id="overlay"></canvas>
+          <p class="stage-placeholder" id="stagePlaceholder">Cámara apagada</p>
+        </section>
+      </div>
+
+      <section class="stats" aria-label="Indicadores">
+        <div class="stat">
+          <span class="section-label">Manos</span>
+          <span class="stat-value" id="handsValue">0</span>
+        </div>
+        <div class="stat">
+          <span class="section-label">FPS</span>
+          <span class="stat-value" id="fpsValue">–</span>
+        </div>
+        <div class="stat">
+          <span class="section-label">Procesador</span>
+          <span class="stat-value" id="delegateValue">–</span>
+        </div>
+      </section>
+
+      <!-- Sin aria-live a propósito: se actualiza varias veces por segundo y saturaría al lector de pantalla -->
+      <section class="hand-data" aria-label="Coordenadas de la punta del índice">
+        <h2 class="section-label">Punta del índice (nodo 8) · x, y de 0 a 1 según la vista · z relativa a la muñeca</h2>
+        <ul class="hand-data-list" id="handDataList"></ul>
+      </section>
+    </div>
+
+    <!-- Columna derecha: lo que se envía, la conexión con el broker y el estado del robot -->
+    <div class="column column-remote">
+      <!-- Datos de control: lo que se envía. Sin aria-live: cambia varias veces por segundo -->
+      <section class="control" aria-label="Datos de control">
+        <h2 class="section-label">Datos de control · lo que se envía al robot</h2>
+        <div class="stats">
+          <div class="stat">
+            <span class="section-label">X</span>
+            <span class="stat-value" id="controlXValue">–</span>
+          </div>
+          <div class="stat">
+            <span class="section-label">Y</span>
+            <span class="stat-value" id="controlYValue">–</span>
+          </div>
+          <div class="stat">
+            <span class="section-label">Dedos</span>
+            <span class="stat-value" id="fingersValue">–</span>
+          </div>
+          <div class="stat">
+            <span class="section-label">Gesto</span>
+            <span class="stat-value stat-value-text" id="gestureValue">Sin mano</span>
+          </div>
+        </div>
+        <p class="message">
+          <span class="section-label">Mensaje</span>
+          <code class="message-value" id="messageValue">SIN_MANO</code>
+          <span class="message-rate" id="messageRateValue">– msg/s</span>
+        </p>
+        <p class="control-hint" id="controlHint"></p>
+      </section>
+
+      <!-- Conexión con el broker MQTT. La contraseña nunca se guarda en esta página:
+           si el usuario quiere, la recuerda el gestor de contraseñas del navegador -->
+      <section class="panel" aria-label="Conexión remota">
+        <div class="panel-header">
+          <h2 class="section-label">Conexión remota · MQTT</h2>
+          <p class="led-row" id="remoteLedRow">
+            <span class="led-indicator" aria-hidden="true"></span>
+            <span class="led-indicator" aria-hidden="true"></span>
+            <span class="led-indicator" aria-hidden="true"></span>
+            <span id="remoteLedStatus" aria-live="polite">LEDs sin confirmar</span>
+          </p>
+        </div>
+
+        <form class="connect-form" id="connectForm" autocomplete="on">
+          <div class="field">
+            <label for="roomInput">Sala</label>
+            <input class="input" id="roomInput" name="room" maxlength="24" autocapitalize="off" spellcheck="false" required />
+          </div>
+          <div class="field">
+            <label for="aliasInput">Tu alias</label>
+            <input class="input" id="aliasInput" name="alias" maxlength="24" placeholder="p. ej. ana" autocapitalize="off" spellcheck="false" required />
+          </div>
+          <div class="field">
+            <label for="usernameInput">Usuario</label>
+            <input class="input" id="usernameInput" name="username" autocomplete="username" autocapitalize="off" spellcheck="false" />
+          </div>
+          <div class="field">
+            <label for="passwordInput">Contraseña</label>
+            <input class="input" id="passwordInput" name="password" type="password" autocomplete="current-password" />
+          </div>
+          <details class="field field-wide field-advanced">
+            <summary>Servidor (avanzado)</summary>
+            <label class="visually-hidden" for="brokerInput">Dirección del broker</label>
+            <input class="input" id="brokerInput" name="broker" autocapitalize="off" spellcheck="false" />
+          </details>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary btn-small" id="mqttConnectButton">Conectar</button>
+            <p class="connection-status">
+              <span class="status-dot" id="mqttStatusDot" aria-hidden="true"></span>
+              <span id="mqttStatus" aria-live="polite">Desconectado</span>
+            </p>
+          </div>
+        </form>
+
+        <p class="role-row">
+          <span class="badge" id="controlBadge">Sin conexión</span>
+          <span id="receiverStatus">Profesor: sin datos</span>
+          <span id="sentRateValue"></span>
+        </p>
+      </section>
+
+      <section class="panel log-panel" aria-label="Registro de eventos">
+        <div class="logger-header">
+          <h2 class="section-label">Registro</h2>
+          <div class="logger-actions">
+            <label class="toggle toggle-small">
+              <input type="checkbox" id="logTxCheckbox" />
+              Mostrar cada envío (TX)
+            </label>
+            <button type="button" class="btn btn-secondary btn-small" id="clearLogButton">Limpiar</button>
+          </div>
+        </div>
+        <ol class="log-list" id="logList" role="log"></ol>
+      </section>
+    </div>
+  </main>
+
+  <script type="module">
+    // Emisor: detecta la mano con MediaPipe y publica los datos en el broker solo mientras el profesor le da el control
+    import { initHandTracker } from "./js/hand-tracker.js";
+    import { createLogger } from "./js/logger.js";
+    import { CONFIG } from "./js/config.js";
+    import { NAME_PATTERN, normalizeName, buildTopics, checkBrokerUrl, createMqttLink } from "./js/mqtt-link.js";
+    import { NO_HAND_MESSAGE } from "./js/protocol.js";
+
+    // Solo se recuerdan datos que no son secretos; la contraseña la guarda el navegador si el usuario lo acepta
+    var FORM_STORAGE_KEY = "brazo-robot.emisor.form";
+    var LED_COUNT = 3;
+    var LEDS_PATTERN = /^OK: LEDS (\d+)$/;
+    var RATE_INTERVAL_MS = 1000;
+    var STATE_LABELS = {
+      disconnected: "Desconectado",
+      connecting: "Conectando…",
+      connected: "Conectado",
+      reconnecting: "Reconectando…",
+      error: "Error"
+    };
+
+    var connectForm = document.getElementById("connectForm");
+    var roomInput = document.getElementById("roomInput");
+    var aliasInput = document.getElementById("aliasInput");
+    var usernameInput = document.getElementById("usernameInput");
+    var passwordInput = document.getElementById("passwordInput");
+    var brokerInput = document.getElementById("brokerInput");
+    var mqttConnectButton = document.getElementById("mqttConnectButton");
+    var mqttStatusDot = document.getElementById("mqttStatusDot");
+    var mqttStatus = document.getElementById("mqttStatus");
+    var controlBadge = document.getElementById("controlBadge");
+    var receiverStatus = document.getElementById("receiverStatus");
+    var sentRateValue = document.getElementById("sentRateValue");
+    var remoteLeds = Array.prototype.slice.call(document.querySelectorAll("#remoteLedRow .led-indicator"));
+    var remoteLedStatus = document.getElementById("remoteLedStatus");
+    var logTxCheckbox = document.getElementById("logTxCheckbox");
+    var clearLogButton = document.getElementById("clearLogButton");
+    var logList = document.getElementById("logList");
+
+    var log = createLogger(logList, "[emisor]");
+    var tracker = initHandTracker({ sendIntervalMs: CONFIG.remoteSendIntervalMs });
+
+    var session = null;        // { room, alias, topics } desde que se pide la conexión hasta que se cierra
+    var connectionState = "disconnected";
+    var hasControl = false;    // true mientras el profesor eligió a este alumno
+    var receiverOnline = null; // null = todavía no se sabe
+    var sentSinceRate = 0;
+
+    var link = createMqttLink({
+      log: log,
+      onStateChange: handleStateChange,
+      onConnect: handleConnect,
+      onMessage: handleMessage
+    });
+
+    // ================= Formulario =================
+
+    function readStoredForm() {
+      try {
+        return JSON.parse(localStorage.getItem(FORM_STORAGE_KEY)) || {};
+      } catch (error) {
+        return {}; // Almacenamiento bloqueado o dato corrupto: se arranca con los valores por defecto
+      }
+    }
+
+    function saveForm() {
+      var data = { room: roomInput.value, alias: aliasInput.value, username: usernameInput.value };
+      // El servidor solo se guarda si se cambió a mano: así, si cambia js/config.js, todos toman el nuevo
+      if (brokerInput.value.trim() !== CONFIG.brokerUrl) {
+        data.broker = brokerInput.value.trim();
+      }
+      try {
+        localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(data));
+      } catch (error) {
+        // Sin almacenamiento la página funciona igual; solo no recuerda los datos
+      }
+    }
+
+    function setFormEnabled(isEnabled) {
+      [roomInput, aliasInput, usernameInput, passwordInput, brokerInput].forEach(function (input) {
+        input.disabled = !isEnabled;
+      });
+      connectForm.classList.toggle("is-active", !isEnabled);
+    }
+
+    // Datos del formulario incompletos o inválidos: se avisa sin cambiar el estado de la conexión
+    function rejectForm(message) {
+      mqttStatus.textContent = message;
+      log("warn", message);
+    }
+
+    // ================= Estado en pantalla =================
+
+    function setLeds(count) {
+      remoteLeds.forEach(function (indicator, index) {
+        indicator.classList.toggle("is-on", count !== null && index < count);
+        indicator.classList.toggle("is-off", count !== null && index >= count);
+      });
+      remoteLedStatus.textContent = count === null ? "LEDs sin confirmar" : count + " de " + LED_COUNT + " LEDs encendidos";
+    }
+
+    function renderRole() {
+      var isConnected = connectionState === "connected";
+      controlBadge.classList.toggle("is-active", isConnected && hasControl);
+      controlBadge.classList.toggle("is-waiting", isConnected && !hasControl);
+      controlBadge.textContent = !isConnected ? "Sin conexión" : hasControl ? "Tienes el control" : "En espera";
+
+      if (!isConnected || receiverOnline === null) {
+        receiverStatus.textContent = "Profesor: sin datos";
+      } else {
+        receiverStatus.textContent = receiverOnline ? "Profesor conectado" : "Profesor desconectado";
+      }
+    }
+
+    function handleStateChange(state, detail) {
+      connectionState = state;
+      var isIdle = state === "disconnected" || state === "error";
+
+      mqttStatusDot.classList.toggle("is-connected", state === "connected");
+      mqttStatusDot.classList.toggle("is-busy", state === "connecting" || state === "reconnecting");
+      mqttStatus.textContent = state === "connected" && session
+        ? "Conectado como «" + session.alias + "» en la sala «" + session.room + "»"
+        : detail || STATE_LABELS[state];
+      mqttConnectButton.textContent = isIdle ? "Conectar" : "Desconectar";
+      setFormEnabled(isIdle);
+
+      if (state === "error") {
+        log("error", detail);
+      }
+      if (isIdle) {
+        session = null;
+        hasControl = false;
+        receiverOnline = null;
+        setLeds(null);
+      }
+      renderRole();
+    }
+
+    // ================= MQTT =================
+
+    // Se llama en cada conexión, también al reconectar: se vuelve a anunciar y a suscribir
+    async function handleConnect() {
+      var topics = session.topics;
+      log("success", "Conectado al broker como «" + session.alias + "» en la sala «" + session.room + "».");
+      await link.publish(topics.studentStatus(session.alias), "online", { qos: 1, retain: true });
+
+      var results = await Promise.all([
+        link.subscribe(topics.control, 1),
+        link.subscribe(topics.leds, 1),
+        link.subscribe(topics.receiver, 1)
+      ]);
+      if (results.every(Boolean)) {
+        log("info", "Esperando que el profesor te dé el control…");
+      }
+    }
+
+    function handleMessage(topic, text) {
+      if (!session) {
+        return;
+      }
+      var topics = session.topics;
+      var value = text.trim();
+
+      if (topic === topics.control) {
+        var hadControl = hasControl;
+        hasControl = value === session.alias;
+        if (hasControl) {
+          if (!hadControl) {
+            log("success", "¡Tienes el control del robot!");
+          }
+          // El receptor necesita el estado actual enseguida, aunque la mano esté quieta y no haya mensajes nuevos
+          publishCurrentState();
+        } else if (hadControl) {
+          log("info", value ? "El control pasó a «" + value + "»." : "El profesor quitó el control.");
+        }
+        renderRole();
+      } else if (topic === topics.leds) {
+        var match = LEDS_PATTERN.exec(value);
+        setLeds(match ? Math.min(Number(match[1]), LED_COUNT) : null);
+      } else if (topic === topics.receiver) {
+        receiverOnline = value === "online";
+        renderRole();
+      }
+    }
+
+    // Solo se publica con el control: ahorra cupo del broker y el receptor tampoco escucha a los demás
+    function publishHand(message) {
+      if (!session || !hasControl || !link.isConnected()) {
+        return;
+      }
+      link.publish(session.topics.studentHand(session.alias), message, { qos: 0 }).then(function (isSent) {
+        if (isSent) {
+          sentSinceRate++;
+          if (logTxCheckbox.checked) {
+            log("tx", message);
+          }
+        }
+      });
+    }
+
+    // Con la pestaña oculta el navegador pausa la detección: el último gesto quedaría "congelado" en el robot
+    function publishCurrentState() {
+      publishHand(document.hidden ? NO_HAND_MESSAGE : tracker.getCurrentMessage());
+    }
+
+    function connect() {
+      var room = normalizeName(roomInput.value);
+      var alias = normalizeName(aliasInput.value);
+      var broker = checkBrokerUrl(brokerInput.value);
+
+      if (!NAME_PATTERN.test(room)) {
+        rejectForm("La sala solo puede tener minúsculas, números y guiones (hasta 24).");
+        return;
+      }
+      if (!NAME_PATTERN.test(alias)) {
+        rejectForm("El alias solo puede tener minúsculas, números y guiones (hasta 24), p. ej. «ana».");
+        return;
+      }
+      if (broker.error) {
+        rejectForm(broker.error);
+        return;
+      }
+
+      roomInput.value = room;
+      aliasInput.value = alias;
+      saveForm();
+
+      session = { room: room, alias: alias, topics: buildTopics(CONFIG.topicRoot, room) };
+      log("info", "Conectando a " + broker.url + "…");
+      link.connect({
+        url: broker.url,
+        username: usernameInput.value.trim(),
+        password: passwordInput.value,
+        clientIdPrefix: "emisor-" + alias,
+        keepaliveSeconds: CONFIG.keepaliveSeconds,
+        // Si esta pestaña se cierra de golpe o se corta internet, el broker publica "offline" en nombre del alumno
+        will: { topic: session.topics.studentStatus(alias), payload: "offline", qos: 1, retain: true }
+      });
+    }
+
+    async function disconnect() {
+      var current = session;
+      await link.disconnect(async function () {
+        await link.publish(current.topics.studentStatus(current.alias), "offline", { qos: 1, retain: true });
+      });
+      log("info", "Desconectado del broker.");
+    }
+
+    // ================= Eventos =================
+
+    connectForm.addEventListener("submit", function (event) {
+      event.preventDefault();
+      if (link.isActive()) {
+        disconnect();
+      } else {
+        connect();
+      }
+    });
+
+    // Cada mensaje de "Datos de control" se publica si este alumno tiene el control
+    window.addEventListener("handcontrol", function (event) {
+      publishHand(event.detail.message);
+    });
+
+    // Pestaña oculta: SIN_MANO al robot. Al volver: el estado actual, porque la detección se reanuda sola
+    document.addEventListener("visibilitychange", function () {
+      if (!hasControl) {
+        return;
+      }
+      if (document.hidden) {
+        log("warn", "La pestaña quedó en segundo plano: se envió SIN_MANO al robot.");
+      }
+      publishCurrentState();
+    });
+
+    // Al cerrar la pestaña se intenta avisar; si no llega, el Last Will del broker cubre el caso
+    window.addEventListener("pagehide", function () {
+      if (session && link.isConnected()) {
+        link.publish(session.topics.studentStatus(session.alias), "offline", { qos: 1, retain: true });
+      }
+    });
+
+    clearLogButton.addEventListener("click", function () {
+      logList.textContent = "";
+      log("info", "Registro limpiado.");
+    });
+
+    setInterval(function () {
+      sentRateValue.textContent = connectionState === "connected" && hasControl
+        ? "Enviando " + Math.round(sentSinceRate * 1000 / RATE_INTERVAL_MS) + " msg/s"
+        : "";
+      sentSinceRate = 0;
+    }, RATE_INTERVAL_MS);
+
+    // ================= Inicialización =================
+
+    var stored = readStoredForm();
+    roomInput.value = stored.room || CONFIG.defaultRoom;
+    aliasInput.value = stored.alias || "";
+    usernameInput.value = stored.username || "";
+    brokerInput.value = stored.broker || CONFIG.brokerUrl;
+    setLeds(null);
+    renderRole();
+    log("info", "Escribe la sala, tu alias y las credenciales que te dio el profesor, y pulsa «Conectar».");
+  </script>
+</body>
+</html>

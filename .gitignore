@@ -1,0 +1,11 @@
+# Credenciales: nunca se suben (el repositorio y el sitio son públicos)
+users.md
+*.local.*
+.env*
+
+# Páginas viejas con datos personales: quedan en el disco, pero no se publican
+deprecated/
+
+# Archivos comprimidos para compartir por fuera del repositorio
+*.rar
+*.zip

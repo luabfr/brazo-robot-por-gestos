@@ -160,7 +160,7 @@ python -m http.server 8000
 
 Abrir `http://localhost:8000` en Chrome o Edge.
 
-Para probar sin cuenta de EMQX, en **Servidor (avanzado)** se puede usar el broker público de pruebas `wss://broker.emqx.io:8084/mqtt`. Es abierto, así que conviene elegir una sala con un nombre poco común.
+Para probar sin cuenta de EMQX, en **Servidor** (al final de la fila de conexión) se puede usar el broker público de pruebas `wss://broker.emqx.io:8084/mqtt`. Es abierto, así que conviene elegir una sala con un nombre poco común.
 
 ### 4. Publicar (GitHub Pages)
 
@@ -170,7 +170,7 @@ El sitio es estático: no necesita compilación. En el repositorio, ir a **Setti
 
 ```
 index.html, emisor.html, receptor.html, hand-tracking.html   páginas
-css/app.css            estilos compartidos (diseño de dos columnas sin scroll en escritorio)
+css/app.css            estilos compartidos (dos columnas en escritorio, una en celulares)
 js/hand-tracker.js     cámara, MediaPipe, gestos y datos de control
 js/serial-link.js      conexión con el Arduino por Web Serial
 js/mqtt-link.js        conexión con el broker (MQTT.js sobre wss)

@@ -6,6 +6,10 @@
   <meta name="description" content="Emisor: detecta la mano con la webcam (MediaPipe) y envía los datos por MQTT para controlar un robot a distancia" />
   <title>Emisor · Brazo robot por gestos</title>
   <link rel="icon" href="data:," />
+  <!-- Tipografía del sitio: Space Grotesk (Google Fonts), grotesca de aire técnico y muy legible -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400..700&display=swap" />
   <link rel="stylesheet" href="css/app.css" />
 </head>
 <body class="theme-emisor">
@@ -23,9 +27,14 @@
     <!-- Orden de lectura: fila 1 = controles de la cámara | conexión MQTT; fila 2 = tu cámara | el brazo en vivo;
          fila 3 = datos de control | registro. En celulares todo va en una columna, en este mismo orden -->
 
-    <section class="camera-controls" aria-label="Controles de la cámara">
+    <!-- Misma estructura que el panel de MQTT: título y estado arriba, controles en una fila -->
+    <section class="panel camera-controls" aria-label="Detección de la mano">
+      <div class="panel-header">
+        <h2 class="section-label">Detección de la mano · MediaPipe</h2>
+        <p class="status" id="status" role="status" aria-live="polite"></p>
+      </div>
       <div class="toolbar">
-        <button type="button" class="btn btn-primary" id="cameraButton">Iniciar cámara</button>
+        <button type="button" class="btn btn-primary btn-small" id="cameraButton">Iniciar cámara</button>
         <!-- Apagado por defecto: con 21 números por mano el dibujo se vuelve difícil de leer -->
         <label class="toggle">
           <input type="checkbox" id="showIndicesCheckbox" />
@@ -43,8 +52,6 @@
           </select>
         </label>
       </div>
-
-      <p class="status" id="status" role="status" aria-live="polite"></p>
     </section>
 
     <!-- Conexión con el broker MQTT. La contraseña nunca se guarda en esta página:
@@ -52,14 +59,13 @@
     <section class="panel mqtt-panel" aria-label="Conexión remota">
       <div class="panel-header">
         <h2 class="section-label">Conexión remota · MQTT</h2>
-        <p class="led-row" id="remoteLedRow">
-          <span class="led-indicator" aria-hidden="true"></span>
-          <span class="led-indicator" aria-hidden="true"></span>
-          <span class="led-indicator" aria-hidden="true"></span>
-          <span id="remoteLedStatus" aria-live="polite">LEDs sin confirmar</span>
+        <p class="connection-status">
+          <span class="status-dot" id="mqttStatusDot" aria-hidden="true"></span>
+          <span id="mqttStatus" aria-live="polite">Desconectado</span>
         </p>
       </div>
 
+      <!-- Una sola fila: campos, botón y tu rol; "Servidor" al final -->
       <form class="connect-form" id="connectForm" autocomplete="on">
         <div class="field">
           <label for="roomInput">Sala</label>
@@ -77,35 +83,29 @@
           <label for="passwordInput">Contraseña</label>
           <input class="input" id="passwordInput" name="password" type="password" autocomplete="current-password" />
         </div>
-        <details class="field field-wide field-advanced">
-          <summary>Servidor (avanzado)</summary>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary btn-small" id="mqttConnectButton">Conectar</button>
+          <!-- Tu rol: solo con la conexión activa (sin conexión repetiría lo que ya dice el estado).
+               Lo que informa el profesor (si está conectado, LEDs y brazo) va junto al video del brazo -->
+          <p class="role-row" id="roleRow" hidden>
+            <span class="badge" id="controlBadge">Sin conexión</span>
+            <span id="sentRateValue"></span>
+          </p>
+        </div>
+        <!-- Al final de la fila: abierto, el campo baja a una línea propia -->
+        <details class="field field-advanced">
+          <summary title="Dirección del broker MQTT. Opcional: normalmente no hace falta cambiarla">Servidor</summary>
           <label class="visually-hidden" for="brokerInput">Dirección del broker</label>
           <input class="input" id="brokerInput" name="broker" autocapitalize="off" spellcheck="false" />
         </details>
-        <div class="form-actions">
-          <button type="submit" class="btn btn-primary btn-small" id="mqttConnectButton">Conectar</button>
-          <p class="connection-status">
-            <span class="status-dot" id="mqttStatusDot" aria-hidden="true"></span>
-            <span id="mqttStatus" aria-live="polite">Desconectado</span>
-          </p>
-        </div>
       </form>
-
-      <!-- Solo se muestra con la conexión activa: sin conexión repetiría lo que ya dice el estado -->
-      <p class="role-row" id="roleRow" hidden>
-        <span class="badge" id="controlBadge">Sin conexión</span>
-        <span id="receiverStatus">Profesor: sin datos</span>
-        <span id="sentRateValue"></span>
-      </p>
-      <!-- Estado del brazo del profesor: solo aparece si su Arduino tiene el sketch del brazo -->
-      <p class="device-status" id="remoteArmStatus" hidden></p>
     </section>
 
     <!-- Tu cámara. El video muestra la webcam; el canvas encima dibuja los nodos detectados.
          stage-area es el espacio disponible; el escenario se ajusta adentro sin deformar la imagen.
          Sobre el video van dos capas de datos (solo con la cámara encendida): los indicadores técnicos,
          chicos en una esquina, y los datos de la mano en una franja abajo -->
-    <div class="stage-area stage-area-top camera-area">
+    <div class="stage-area camera-area">
       <!-- stage-frame mide lo mismo que el video: la franja de datos se apoya sobre su borde inferior.
            En celulares la franja pasa a ir debajo del video para no taparlo -->
       <div class="stage-frame">
@@ -128,15 +128,32 @@
       </div>
     </div>
 
-    <!-- El brazo en vivo: la cámara de la PC del profesor, por VDO.Ninja. El ID y la clave llegan por MQTT -->
-    <section class="stream-area" aria-label="Brazo robot en vivo">
+    <!-- El brazo en vivo: la cámara de la PC del profesor, por VDO.Ninja (el ID y la clave llegan por MQTT).
+         theme-receptor: todo lo que viene del profesor usa su paleta, la misma de su página y de su tarjeta en la portada -->
+    <section class="stream-area theme-receptor" aria-label="Brazo robot en vivo">
       <div class="stream-frame">
-        <div class="video-box" id="streamBox">
-          <p class="video-placeholder" id="streamPlaceholder">Conéctate al broker para ver el brazo.</p>
+        <div class="stream-screen">
+          <div class="video-box" id="streamBox">
+            <p class="video-placeholder" id="streamPlaceholder">Conéctate al broker para ver el brazo.</p>
+          </div>
+          <p class="stage-label" id="streamLabel">
+            <span class="live-dot" id="liveDot" aria-hidden="true" hidden></span><span id="streamLabelText">Brazo robot</span>
+          </p>
+          <p class="stage-meta" id="receiverStatus" hidden>Profesor: sin datos</p>
         </div>
-        <p class="stage-label" id="streamLabel">
-          <span class="live-dot" id="liveDot" aria-hidden="true" hidden></span><span id="streamLabelText">Brazo robot</span>
-        </p>
+
+        <!-- Lo que informa el Arduino del profesor: LEDs encendidos o, con el sketch del brazo, su estado.
+             Va sobre el borde inferior del video; en celulares, debajo -->
+        <section class="robot-hud" id="robotHud" aria-label="Estado del robot" hidden>
+          <span class="robot-hud-tag">Arduino</span>
+          <p class="led-row" id="remoteLedRow">
+            <span class="led-indicator" aria-hidden="true"></span>
+            <span class="led-indicator" aria-hidden="true"></span>
+            <span class="led-indicator" aria-hidden="true"></span>
+            <span id="remoteLedStatus" aria-live="polite">LEDs sin confirmar</span>
+          </p>
+          <p class="device-status" id="remoteArmStatus" hidden></p>
+        </section>
       </div>
     </section>
 
@@ -236,6 +253,7 @@
     var streamPlaceholder = document.getElementById("streamPlaceholder");
     var streamLabelText = document.getElementById("streamLabelText");
     var liveDot = document.getElementById("liveDot");
+    var robotHud = document.getElementById("robotHud");
 
     var log = createLogger(logList, "[emisor]");
     var tracker = initHandTracker({ sendIntervalMs: CONFIG.remoteSendIntervalMs });
@@ -306,6 +324,9 @@
     function renderRole() {
       var isConnected = connectionState === "connected";
       roleRow.hidden = !isConnected;
+      // Lo que informa el profesor solo tiene sentido con la conexión activa
+      receiverStatus.hidden = !isConnected;
+      robotHud.hidden = !isConnected;
       controlBadge.classList.toggle("is-active", isConnected && hasControl);
       controlBadge.classList.toggle("is-waiting", isConnected && !hasControl);
       controlBadge.textContent = !isConnected ? "Sin conexión" : hasControl ? "Tienes el control" : "En espera";

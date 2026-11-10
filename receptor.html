@@ -6,20 +6,37 @@
   <meta name="description" content="Receptor: recibe por MQTT los gestos del alumno elegido y los envía al Arduino por Web Serial" />
   <title>Receptor · Brazo robot por gestos</title>
   <link rel="icon" href="data:," />
+  <!-- Tipografía del sitio: Space Grotesk (Google Fonts), grotesca de aire técnico y muy legible -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400..700&display=swap" />
   <link rel="stylesheet" href="css/app.css" />
 </head>
-<body>
-  <main class="app">
+<body class="theme-receptor">
+  <main class="app app-receptor">
     <header class="app-header">
-      <h1>Receptor</h1>
+      <!-- Mismo ícono que la tarjeta del receptor en la portada -->
+      <h1>
+        <span class="title-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="3" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
+        </span>Receptor
+      </h1>
       <p class="tagline">Elige qué alumno controla el robot · MQTT + Web Serial · <a href="index.html">volver al inicio</a></p>
     </header>
 
-    <!-- Columna izquierda: conexión con el broker, quién controla y alumnos conectados -->
+    <!-- Columna izquierda: la conexión con el broker, los alumnos, los datos que llegan del que controla
+         y la conexión con el Arduino. Columna derecha: la cámara del brazo y el registro de eventos -->
     <div class="column column-remote">
-      <!-- La contraseña nunca se guarda en esta página: si el usuario quiere, la recuerda el navegador -->
-      <section class="panel" aria-label="Conexión remota">
-        <h2 class="section-label">Conexión remota · MQTT</h2>
+      <!-- Conexión con el broker, en una sola fila. La contraseña nunca se guarda en esta página:
+           si el usuario quiere, la recuerda el navegador -->
+      <section class="panel mqtt-panel" aria-label="Conexión remota">
+        <div class="panel-header">
+          <h2 class="section-label">Conexión remota · MQTT</h2>
+          <p class="connection-status">
+            <span class="status-dot" id="mqttStatusDot" aria-hidden="true"></span>
+            <span id="mqttStatus" aria-live="polite">Desconectado</span>
+          </p>
+        </div>
         <form class="connect-form" id="connectForm" autocomplete="on">
           <div class="field">
             <label for="roomInput">Sala</label>
@@ -33,25 +50,27 @@
             <label for="passwordInput">Contraseña</label>
             <input class="input" id="passwordInput" name="password" type="password" autocomplete="current-password" />
           </div>
-          <details class="field field-wide field-advanced">
-            <summary>Servidor (avanzado)</summary>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary btn-small" id="mqttConnectButton">Conectar</button>
+          </div>
+          <!-- Al final de la fila: abierto, el campo baja a una línea propia -->
+          <details class="field field-advanced">
+            <summary title="Dirección del broker MQTT. Opcional: normalmente no hace falta cambiarla">Servidor</summary>
             <label class="visually-hidden" for="brokerInput">Dirección del broker</label>
             <input class="input" id="brokerInput" name="broker" autocapitalize="off" spellcheck="false" />
           </details>
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary btn-small" id="mqttConnectButton">Conectar</button>
-            <p class="connection-status">
-              <span class="status-dot" id="mqttStatusDot" aria-hidden="true"></span>
-              <span id="mqttStatus" aria-live="polite">Desconectado</span>
-            </p>
-          </div>
         </form>
+      </section>
+
+      <section class="panel students" aria-label="Alumnos conectados">
+        <h2 class="section-label" id="studentsTitle">Alumnos conectados</h2>
+        <ul class="student-list" id="studentList"></ul>
       </section>
 
       <!-- Datos que llegan del alumno con el control. Sin aria-live: cambian varias veces por segundo -->
       <section class="control" aria-label="Alumno con el control">
         <div class="panel-header">
-          <h2 class="section-label">Controla el robot</h2>
+          <h2 class="section-label">Datos recibidos · alumno con el control</h2>
           <p class="role-row">
             <span class="badge" id="controllerBadge">Nadie</span>
             <button type="button" class="btn btn-secondary btn-small" id="releaseButton" disabled>Quitar control</button>
@@ -82,37 +101,6 @@
         </p>
       </section>
 
-      <section class="panel students" aria-label="Alumnos conectados">
-        <h2 class="section-label" id="studentsTitle">Alumnos conectados</h2>
-        <ul class="student-list" id="studentList"></ul>
-      </section>
-    </div>
-
-    <!-- Columna derecha: la cámara del brazo y todo lo relacionado con el Arduino (conexión y registro) -->
-    <div class="column column-arduino">
-      <!-- Video en vivo del brazo para los alumnos (VDO.Ninja). El ID y la clave se reparten por MQTT -->
-      <section class="panel video-panel" aria-label="Cámara del brazo">
-        <div class="panel-header">
-          <h2 class="section-label">Cámara del brazo · video para los alumnos</h2>
-          <p class="connection-status">
-            <span class="status-dot" id="videoStatusDot" aria-hidden="true"></span>
-            <span id="videoStatus" aria-live="polite">Apagada</span>
-          </p>
-        </div>
-        <div class="port-row">
-          <label class="visually-hidden" for="cameraSelect">Cámara</label>
-          <select class="select" id="cameraSelect">
-            <option value="">Predeterminada</option>
-          </select>
-          <button type="button" class="btn btn-secondary btn-small" id="findCamerasButton"
-                  title="Pide permiso de cámara para poder listar las cámaras por nombre">Buscar cámaras</button>
-          <button type="button" class="btn btn-primary btn-small" id="videoButton">Encender cámara</button>
-        </div>
-        <div class="video-box video-box-preview" id="pushBox">
-          <p class="video-placeholder" id="pushPlaceholder">Cámara apagada. Al encenderla, los alumnos conectados ven el brazo en su página.</p>
-        </div>
-      </section>
-
       <!-- Conexión con el Arduino por Web Serial (mismo funcionamiento que la versión local) -->
       <section class="serial" aria-label="Conexión con el Arduino">
         <div class="serial-header">
@@ -138,9 +126,37 @@
         </p>
         <!-- Solo aparece con el sketch del brazo (arduino/brazo_2_motores); con el de LEDs queda oculto -->
         <p class="device-status" id="armStatus" aria-live="polite" hidden></p>
+      </section>
+    </div>
 
+    <div class="column column-video">
+      <!-- Video en vivo del brazo para los alumnos (VDO.Ninja). El ID y la clave se reparten por MQTT -->
+      <section class="panel video-panel" aria-label="Cámara del brazo">
+        <div class="panel-header">
+          <h2 class="section-label">Cámara del brazo · video para los alumnos</h2>
+          <p class="connection-status">
+            <span class="status-dot" id="videoStatusDot" aria-hidden="true"></span>
+            <span id="videoStatus" aria-live="polite">Apagada</span>
+          </p>
+        </div>
+        <div class="port-row">
+          <label class="visually-hidden" for="cameraSelect">Cámara</label>
+          <select class="select" id="cameraSelect">
+            <option value="">Predeterminada</option>
+          </select>
+          <button type="button" class="btn btn-secondary btn-small" id="findCamerasButton"
+                  title="Pide permiso de cámara para poder listar las cámaras por nombre">Buscar cámaras</button>
+          <button type="button" class="btn btn-primary btn-small" id="videoButton">Encender cámara</button>
+        </div>
+        <div class="video-box video-box-preview" id="pushBox">
+          <p class="video-placeholder" id="pushPlaceholder">Cámara apagada. Al encenderla, los alumnos conectados ven el brazo en su página.</p>
+        </div>
+      </section>
+
+      <!-- Registro de toda la página: broker, alumnos y Arduino -->
+      <section class="panel log-panel" aria-label="Registro de eventos">
         <div class="logger-header">
-          <h3 class="section-label">Registro</h3>
+          <h2 class="section-label">Registro</h2>
           <div class="logger-actions">
             <label class="toggle toggle-small">
               <input type="checkbox" id="logTxCheckbox" />
@@ -171,7 +187,7 @@
     var CAMERA_STORAGE_KEY = "brazo-robot.receptor.camera"; // Nombre de la última cámara elegida para el brazo
     var RATE_INTERVAL_MS = 1000;
     var MAX_LOGGED_TEXT = 60; // Un mensaje inválido se muestra recortado: puede ser cualquier cosa llegada por internet
-    // Latido hacia el Arduino: con la mano quieta se repite el estado (el sketch del brazo frena a los 1,5 s sin mensajes)
+    // Latido hacia el Arduino: con la mano quieta se repite el estado (el sketch del brazo frena a los 2 s sin mensajes)
     var SERIAL_KEEPALIVE_MS = 400;
     // Si el alumno con el control deja de enviar (el emisor repite su estado cada 1 s), el robot pasa a SIN_MANO
     var HAND_STALE_MS = 3000;

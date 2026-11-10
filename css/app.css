@@ -113,6 +113,38 @@
   }
 }
 
+/* Paleta del receptor (profesor): el verde azulado de la tarjeta "Receptor" de la portada (--zone-teacher).
+   Se usa en receptor.html y, dentro del emisor, en lo que viene del profesor (el brazo en vivo y su estado).
+   Contraste verificado (WCAG AA, mínimo 4,5:1) en todas las combinaciones de texto y fondo; el peor caso
+   es el acento sobre su fondo teñido, con 4,86:1. Reemplaza al acento #0f8b8d, que daba 4,12:1 sobre blanco */
+.theme-receptor {
+  --bg: #eaf5f5;
+  --card: #ffffff;
+  --text: #152628;
+  --muted: #4b6264;
+  --accent: #0b7476;
+  --accent-hover: #085d5f;
+  --accent-text: #ffffff;
+  --border: #cfe4e4;
+  --shadow: 0 10px 30px rgba(10, 70, 72, 0.1);
+  --log-bg: #f2f9f9;
+}
+
+@media (prefers-color-scheme: dark) {
+  .theme-receptor {
+    --bg: #0b1617;
+    --card: #122223;
+    --text: #e6f2f2;
+    --muted: #93acad;
+    --accent: #4fcacc;
+    --accent-hover: #76d8da;
+    --accent-text: #0b1617;
+    --border: #22393a;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    --log-bg: #0e1c1d;
+  }
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -131,7 +163,8 @@ body {
   padding: 24px 16px;
   background: var(--bg);
   color: var(--text);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Space Grotesk se carga desde Google Fonts; si no llega, se usa la del sistema */
+  font-family: "Space Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   line-height: 1.5;
 }
 
@@ -889,12 +922,22 @@ h1 {
   gap: 8px 12px;
 }
 
-/* Formulario de conexión al broker: tantos campos por fila como entren (todos en una fila si hay lugar) */
+/* Formulario de conexión al broker en una sola fila: campos, botón y, al final, "Servidor (avanzado)".
+   align-items: flex-end alinea el botón con los campos (no con sus etiquetas). Si la fila no entra,
+   los elementos bajan solos a la línea siguiente */
 .connect-form {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
   gap: 8px 12px;
   margin-top: 12px;
+}
+
+/* Campos parejos y sin estirarse de más cuando el panel ocupa todo el ancho (receptor) */
+/* Base de 75 px: con 4 campos, el botón y "Servidor" la fila entra en media columna desde 1180 px */
+.connect-form .field {
+  flex: 1 1 75px;
+  max-width: 220px;
 }
 
 /* Con la conexión activa solo quedan el botón y el estado, que ya dice sala y alias: más lugar para lo demás */
@@ -915,8 +958,17 @@ h1 {
   color: var(--muted);
 }
 
-.field-wide {
-  grid-column: 1 / -1;
+/* "Servidor (avanzado)" cerrado ocupa solo su texto, centrado con los campos (40 px de alto).
+   Abierto, pasa a una línea propia con el campo a todo el ancho */
+.connect-form .field-advanced {
+  flex: 0 0 auto;
+  max-width: none;
+  padding-bottom: 10px;
+}
+
+.connect-form .field-advanced[open] {
+  flex-basis: 100%;
+  padding-bottom: 0;
 }
 
 .field-advanced summary {
@@ -949,7 +1001,6 @@ h1 {
 }
 
 .form-actions {
-  grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1090,13 +1141,6 @@ h1 {
   display: none;
 }
 
-/* En escritorio el video queda arriba, pegado a los controles: el espacio libre va abajo y no en dos huecos */
-@media (min-width: 1180px) and (min-height: 540px) {
-  .stage-area-top {
-    place-items: start center;
-  }
-}
-
 /* Indicadores técnicos (manos, FPS y procesador): chicos y translúcidos, arriba a la derecha.
    Solo importan si la detección anda lenta */
 .stage-meta {
@@ -1159,7 +1203,7 @@ h1 {
   border-radius: 999px;
   background: var(--accent);
   color: var(--accent-text);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: inherit;
   font-size: 0.9rem;
 }
 
@@ -1179,7 +1223,7 @@ h1 {
 
 .stage-hud .hand-empty {
   color: var(--stage-text);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: inherit;
   font-size: 0.9rem;
 }
 
@@ -1287,25 +1331,104 @@ h1 {
   margin-top: 16px;
 }
 
-/* El video del brazo se muestra en 16:9 (VDO.Ninja agrega bandas si la cámara del profesor tiene otra proporción) */
 .stream-frame {
+  position: relative;
+}
+
+/* El video del brazo se muestra en 16:9 (VDO.Ninja agrega bandas si la cámara del profesor tiene otra proporción) */
+.stream-screen {
   position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
   max-height: 70vh;
 }
 
-/* Escritorio: cuatro zonas sin scroll. Arriba los controles de la cámara y la conexión MQTT;
-   en el medio, con todo el alto libre, tu cámara y el brazo en vivo; abajo los datos de control y el registro */
+/* Borde en el color del receptor: el video viene de la PC del profesor */
+.stream-area .video-box {
+  border: 2px solid var(--accent);
+}
+
+/* Lo que informa el Arduino del profesor, en una pastilla sobre el borde inferior izquierdo del video.
+   Ocupa menos que una franja completa: el brazo suele estar abajo, apoyado en su base */
+.robot-hud {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  max-width: calc(100% - 24px);
+  padding: 5px 12px 5px 5px;
+  border-radius: 14px;
+  background: rgba(11, 14, 19, 0.65);
+  color: #e9edf4;
+  font-size: 0.85rem;
+  pointer-events: none;
+}
+
+.robot-hud-tag {
+  padding: 1px 10px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.robot-hud .led-row {
+  color: inherit;
+  font-size: inherit;
+}
+
+/* Sobre el fondo oscuro, el borde de los LEDs apagados o desconocidos va en gris claro (encendidos: amarillo) */
+.robot-hud .led-indicator:not(.is-on) {
+  border-color: var(--stage-text);
+}
+
+.robot-hud .device-status {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: inherit;
+}
+
+/* Celular: la pastilla pasa a ser una tira oscura debajo del video, como los datos de la mano */
+@media (max-width: 600px) {
+  .robot-hud {
+    position: static;
+    max-width: none;
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: var(--stage-bg);
+  }
+}
+
+/* Escritorio: cuatro zonas. Arriba los controles de la cámara y la conexión MQTT; en el medio tu cámara y
+   el brazo en vivo, cada uno al ancho completo de su columna; abajo los datos de control y el registro.
+   El alto de los videos sale del ancho de la columna: si no entra en la ventana, la página hace scroll.
+   La última fila es 1fr: con lugar de sobra, crece el registro y no los paneles de arriba */
 @media (min-width: 1180px) and (min-height: 540px) {
-  /* Los videos nunca bajan de 260 px de alto. En ventanas bajas (sobre todo con el formulario de MQTT abierto)
-     la página hace un poco de scroll en lugar de encimar los videos con los paneles de abajo.
-     min-height en vez de height: con lugar de sobra la grilla ocupa exactamente la ventana, como antes */
-  .app-emisor {
+  /* Emisor y receptor crecen con su contenido y la página hace scroll. El body deja de tener alto fijo
+     (si no, la tarjeta se estira al alto de la ventana y el contenido se sale por abajo).
+     min-height: con lugar de sobra, el body (flex) estira la tarjeta hasta llenar la ventana */
+  body:has(.app-emisor),
+  body:has(.app-receptor) {
     height: auto;
-    min-height: 100%;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  .app-emisor,
+  .app-receptor {
+    height: auto;
+  }
+
+  .app-emisor {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: auto auto minmax(260px, 1fr) auto;
+    grid-template-rows: auto auto auto 1fr;
     grid-template-areas:
       "header header"
       "controls mqtt"
@@ -1314,8 +1437,7 @@ h1 {
   }
 
   /* La separación la da el gap de la grilla. .app-emisor antepuesto: le gana a los márgenes de .panel y .control */
-  .app-emisor > *,
-  .app-emisor .toolbar {
+  .app-emisor > * {
     margin-top: 0;
   }
 
@@ -1327,22 +1449,72 @@ h1 {
   .app-emisor .control { grid-area: control; }
   .app-emisor .log-panel { grid-area: log; }
 
-  /* Mismo criterio que .stage-area: el cuadro ocupa el alto libre sin deformarse (100cqw/100cqh = tamaño del área) */
-  .stream-area {
-    display: grid;
-    place-items: start center;
-    min-height: 160px;
-    container-type: size;
+  /* Las otras páginas ajustan el video al alto libre (contenedor con container-type: size).
+     Acá el video toma el ancho de la columna y su alto sale de la proporción de la cámara */
+  /* place-items: normal anula el "center" de .stage-area: con center, el navegador encoge el marco
+     al ancho de su contenido y el video (width: 100 % del marco) queda en 0 px */
+  .app-emisor .stage-area {
+    display: block;
+    place-items: normal;
+    min-height: 0;
+    container-type: normal;
   }
 
-  .stream-frame {
-    width: min(100cqw, calc(100cqh * 16 / 9));
+  .app-emisor .stage {
+    width: 100%;
+    max-height: none;
+  }
+
+  .stream-screen {
     max-height: none;
   }
 
   .app-emisor .log-list {
     min-height: 60px;
   }
+
+  /* Receptor: dos columnas iguales desde arriba. Izquierda: conexión MQTT, alumnos, datos recibidos y Arduino.
+     Derecha: la cámara del brazo (alineada con la conexión MQTT) y el registro, que ocupa el alto que sobra */
+  .app-receptor {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      "header header"
+      "remote video";
+  }
+
+  .app-receptor > * {
+    margin-top: 0;
+  }
+
+  .app-receptor .app-header { grid-area: header; }
+  .app-receptor .column-remote { grid-area: remote; }
+  .app-receptor .column-video { grid-area: video; }
+
+  /* Sin scroll propio en cada columna: crece la página. Sin overflow tampoco hace falta el margen
+     negativo que dejaba lugar al contorno de foco */
+  .app-receptor .column {
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+  }
+
+  /* En la columna izquierda, si sobra alto, crece la lista de alumnos y no el panel del Arduino */
+  .app-receptor .serial {
+    flex: none;
+  }
+}
+
+/* Estado de la conexión MQTT (y de la cámara en el emisor) en el encabezado del panel, y tu rol en la fila del botón */
+.panel-header .connection-status,
+.panel-header .status,
+.form-actions .role-row {
+  margin-top: 0;
+}
+
+/* Panel "Detección de la mano" del emisor: controles a la misma distancia del título que el formulario de MQTT */
+.camera-controls .toolbar {
+  margin-top: 12px;
 }
 
 /* ================= Portada (index.html) ================= */

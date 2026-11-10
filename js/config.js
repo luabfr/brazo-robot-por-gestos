@@ -15,5 +15,11 @@ export var CONFIG = {
   // Es P2P: la PC del profesor sube un stream por cada alumno que mira. Con 5 alumnos a 1000 kbps
   // son unos 5 Mbps de subida; si la conexión no alcanza, bajar este tope
   videoBaseUrl: "https://vdo.ninja/",
-  videoMaxBitrateKbps: 1000
+  videoMaxBitrateKbps: 1000,
+
+  // "Hombre muerto": tiempos que frenan el robot si algo se corta. Están acá (y no en cada página) para que
+  // la infografía (arquitectura.html) muestre siempre los valores reales. El Arduino tiene el suyo en el sketch (2 s)
+  heartbeatMs: 1000,        // Emisor: con la mano quieta repite su estado cada 1 s
+  serialKeepaliveMs: 400,   // Receptor: repite el estado al Arduino cada 0,4 s (el sketch del brazo frena a los 2 s)
+  handStaleMs: 3000         // Receptor: si el alumno con el control calla 3 s, el robot pasa a SIN_MANO
 };

@@ -217,7 +217,7 @@
     var RATE_INTERVAL_MS = 1000;
     // Latido: con el control y la mano quieta se repite el estado cada segundo. Así el receptor distingue
     // "la mano no se mueve" de "se cortó el alumno" (si pasan 3 s sin nada, detiene el robot)
-    var HEARTBEAT_MS = 1000;
+    var HEARTBEAT_MS = CONFIG.heartbeatMs;
     // Con el brazo conectado solo importa el gesto: esta ayuda reemplaza a la de X/Y
     var ARM_HINT = "El brazo solo mira el gesto: mano cerrada = izquierda, mano abierta = derecha, cualquier otro gesto = quieto.";
     var STATE_LABELS = {

@@ -313,15 +313,855 @@ body.arch-body {
   font-size: 0.95rem;
 }
 
+.arch-header-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-top: 12px;
+}
+
 .arch-hint {
-  margin-top: 6px;
+  flex: 1 1 220px;
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: 0.82rem;
+  line-height: 1.4;
 }
 
 /* La ayuda corta es la del celular */
 .arch-hint-short {
   display: none;
+}
+
+/* Botón principal del encabezado: arranca el recorrido guiado. Degradé con los colores de las zonas */
+.arch-tour-start {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px 8px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #8fa3ff, #df8ff2 50%, #4fcacc);
+  box-shadow: 0 8px 22px rgba(143, 163, 255, 0.25);
+  color: #0b0e13;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.arch-tour-start:hover {
+  filter: brightness(1.08);
+}
+
+.arch-tour-start:focus-visible {
+  outline: 2px solid var(--text-strong);
+  outline-offset: 3px;
+}
+
+.arch-tour-start svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+/* Botón secundario del encabezado: abre los temas a fondo */
+.arch-topics-start {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px 7px 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.arch-topics-start:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.arch-topics-start:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 3px;
+}
+
+.arch-topics-start svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+/* Enlaces a un tema: al final del panel de detalle y dentro de la explicación de una capa */
+.arch-topic-link,
+.arch-caption-link {
+  border: 0;
+  background: none;
+  color: var(--link);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.arch-topic-link {
+  margin-top: 18px;
+  padding: 10px 0 0;
+  font-size: 0.95rem;
+}
+
+.arch-caption-link {
+  padding: 0;
+  font-size: inherit;
+}
+
+.arch-topic-link:hover,
+.arch-caption-link:hover {
+  text-decoration: underline;
+}
+
+.arch-topic-link:focus-visible,
+.arch-caption-link:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+/* ---------- Temas a fondo ---------- */
+
+/* Panel ancho a la izquierda (en escritorio) sobre el lienzo; en el celular ocupa toda la pantalla */
+.arch-topics {
+  position: absolute;
+  z-index: 5;
+  top: 16px;
+  bottom: 16px;
+  left: 16px;
+  display: flex;
+  flex-direction: column;
+  width: min(760px, calc(100% - 32px));
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  background: var(--glass-solid);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  overflow: hidden;
+}
+
+.arch-topics-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 14px 6px 22px;
+}
+
+.arch-topics-header h2 {
+  color: var(--text-strong);
+  font-size: 1.3rem;
+}
+
+/* Pestañas: una fila que se desliza si no entra */
+.arch-topics-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 6px 18px 0;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--glass-border);
+  scrollbar-width: none;
+}
+
+.topic-tab {
+  flex: none;
+  padding: 9px 14px 11px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.topic-tab:hover {
+  color: var(--text-strong);
+}
+
+.topic-tab[aria-selected="true"] {
+  border-bottom-color: var(--link);
+  color: var(--text-strong);
+}
+
+.topic-tab:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: -2px;
+  border-radius: 8px 8px 0 0;
+}
+
+.arch-topics-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 22px 28px;
+  color: var(--text-soft);
+  font-size: 0.98rem;
+  line-height: 1.55;
+  overscroll-behavior: contain;
+}
+
+.topic-title {
+  color: var(--text-strong);
+  font-size: 1.5rem;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.topic-intro {
+  margin-top: 8px;
+  max-width: 68ch;
+  color: var(--text-soft);
+  font-size: 1.02rem;
+}
+
+.topic-section,
+.topic-figure,
+.topic-chart {
+  margin-top: 26px;
+}
+
+.topic-section-title,
+.topic-chart-title {
+  color: var(--text-strong);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.topic-section > p {
+  margin-top: 8px;
+}
+
+.topic-chart-note {
+  margin-top: 10px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* Listas de término y explicación */
+.topic-terms {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.topic-terms dt {
+  color: var(--text-strong);
+  font-weight: 700;
+}
+
+.topic-terms dd {
+  color: var(--text-soft);
+}
+
+/* Tablas */
+.topic-table-wrap {
+  margin-top: 10px;
+  overflow-x: auto;
+}
+
+.topic-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.topic-table th,
+.topic-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--glass-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.topic-table thead th {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.topic-table tbody th {
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+.topic-table-toggle {
+  margin-top: 10px;
+}
+
+.topic-table-toggle summary {
+  color: var(--link);
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.topic-link {
+  display: inline-block;
+  margin-top: 8px;
+  font-weight: 700;
+}
+
+/* Anatomía del mensaje */
+.message-anatomy {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.message-anatomy dt {
+  display: inline-block;
+  padding: 4px 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #8fa3ff;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.message-anatomy dd {
+  margin-top: 6px;
+  color: var(--text-soft);
+  font-size: 0.88rem;
+}
+
+/* Gráficos de barras (HTML): nombre, barra y valor en una fila. Las barras nacen en la línea base y
+   terminan redondeadas (4 px); el riel de fondo es tenue */
+.bar-chart {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+  list-style: none;
+}
+
+.bar-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.9fr) 2.4fr auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.bar-label {
+  color: var(--text-strong);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.bar-track {
+  position: relative;
+  height: 16px;
+  border-radius: 0 4px 4px 0;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.bar-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: 0 4px 4px 0;
+  background: var(--color);
+  cursor: help;
+}
+
+.bar-fill:focus-visible {
+  outline: 2px solid var(--text-strong);
+  outline-offset: 2px;
+}
+
+.bar-value {
+  color: var(--text-soft);
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Gráfico de puntos sobre escala logarítmica (línea de tiempo de los "hombre muerto") */
+.dot-chart {
+  display: grid;
+  gap: 4px;
+  margin-top: 12px;
+}
+
+.dot-row,
+.dot-axis {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) 2fr;
+  align-items: center;
+  gap: 14px;
+}
+
+.dot-row {
+  min-height: 44px;
+}
+
+.dot-label {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.dot-label strong {
+  color: var(--text-strong);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.dot-label small {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.dot-track {
+  position: relative;
+  height: 44px;
+}
+
+/* Grilla recesiva: una línea vertical por marca del eje */
+.dot-grid {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.dot-mark {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color);
+  box-shadow: 0 0 0 2px #0e131e;
+  transform: translate(-50%, -50%);
+  cursor: help;
+}
+
+.dot-mark:focus-visible {
+  outline: 2px solid var(--text-strong);
+  outline-offset: 3px;
+}
+
+.dot-value {
+  position: absolute;
+  top: 50%;
+  margin-left: 12px;
+  color: var(--text-soft);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  transform: translateY(-50%);
+}
+
+/* Valor a la izquierda del punto (puntos cerca del borde derecho) */
+.dot-value.is-left {
+  margin-left: -12px;
+  transform: translate(-100%, -50%);
+}
+
+/* Eje: las marcas van en la columna del gráfico, debajo de las filas */
+.dot-axis-track {
+  position: relative;
+  height: 20px;
+}
+
+.dot-tick {
+  position: absolute;
+  top: 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+/* ---------- Esquema de conexión del hardware ---------- */
+
+/* Caja del esquema: en pantallas angostas se desplaza de costado en lugar de achicar el texto */
+.hw-scroll {
+  margin-top: 12px;
+  overflow-x: auto;
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  background: #0b0e13;
+  overscroll-behavior-x: contain;
+}
+
+.hw-diagram {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* Solo en el celular, donde el esquema no entra entero */
+.hw-scroll-hint {
+  display: none;
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.hw-text {
+  fill: var(--text-soft);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.hw-text-board {
+  fill: var(--text-strong);
+  font-size: 14px;
+}
+
+.hw-pin-label {
+  fill: var(--text-muted);
+  font-size: 11px;
+}
+
+/* Placa con el color de las placas Arduino */
+.hw-board {
+  fill: #0c5f68;
+  stroke: #15838e;
+}
+
+.hw-metal {
+  fill: #9aa3b5;
+}
+
+.hw-jack,
+.hw-chip {
+  fill: #1b2230;
+}
+
+.hw-hole {
+  fill: #0b0e13;
+}
+
+.hw-pin {
+  fill: #2a3140;
+  stroke: #4a5366;
+}
+
+.hw-pin.is-used {
+  fill: #f7b04a;
+  stroke: none;
+}
+
+.hw-servo {
+  fill: #2f5fb8;
+  stroke: #5b8be0;
+}
+
+.hw-servo-gear {
+  fill: #e9edf4;
+}
+
+.hw-servo-horn {
+  stroke: #e9edf4;
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+
+.hw-psu {
+  fill: #2a3140;
+  stroke: #4a5366;
+}
+
+.hw-terminal.is-red { fill: #ef5350; }
+.hw-terminal.is-black { fill: #10141b; stroke: #9aa3b5; }
+.hw-terminal.is-green { fill: #5fd38a; }
+
+.hw-optional {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.22);
+  stroke-dasharray: 5 5;
+}
+
+.hw-led {
+  fill: #ff6b6b;
+}
+
+.hw-resistor {
+  stroke: #c9d0dc;
+  stroke-width: 3;
+  stroke-dasharray: 3 2;
+}
+
+/* Cables: el color de cada uno y un área más ancha para el mouse */
+.hw-wire {
+  cursor: help;
+  outline: none;
+}
+
+.hw-wire-line {
+  fill: none;
+  stroke: var(--color);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: opacity 0.2s, stroke-width 0.2s;
+}
+
+.hw-wire-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 16;
+}
+
+/* Al señalar un cable, los demás se atenúan */
+.hw-diagram.is-highlighting .hw-wire:not(.is-active) .hw-wire-line {
+  opacity: 0.2;
+}
+
+.hw-wire.is-active .hw-wire-line {
+  stroke-width: 5;
+}
+
+.hw-wire:focus-visible .hw-wire-line {
+  stroke-width: 5;
+  filter: drop-shadow(0 0 4px var(--color));
+}
+
+/* ---------- Simulador del pulso del servo ---------- */
+
+.servo-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-top: 12px;
+}
+
+.servo-label {
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+.servo-range {
+  flex: 1 1 200px;
+  accent-color: #f7b04a;
+}
+
+.servo-output {
+  flex: 1 1 100%;
+  color: var(--text-soft);
+  font-size: 0.92rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.servo-sim.is-outside .servo-output {
+  color: #f0b44c;
+}
+
+.servo-visuals {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  background: #0b0e13;
+}
+
+.servo-wave,
+.servo-gauge {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.servo-wave-line {
+  fill: none;
+  stroke: #f39c4a;
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+
+.servo-wave-axis {
+  stroke: rgba(255, 255, 255, 0.25);
+  stroke-dasharray: 3 4;
+}
+
+.servo-gauge-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 10;
+  stroke-linecap: round;
+}
+
+.servo-gauge-allowed {
+  fill: none;
+  stroke: rgba(247, 176, 74, 0.35);
+  stroke-width: 10;
+}
+
+.servo-needle {
+  stroke: #f7b04a;
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.servo-hub {
+  fill: #e9edf4;
+}
+
+/* ---------- Paquetes animados ---------- */
+
+.arch-packet {
+  filter: drop-shadow(0 0 5px var(--color));
+}
+
+/* Botón de pausa: muestra "pausa" mientras se anima y "reproducir" cuando está detenido */
+#animationButton .icon-play {
+  display: none;
+}
+
+#animationButton[aria-pressed="true"] .icon-pause {
+  display: none;
+}
+
+#animationButton[aria-pressed="true"] .icon-play {
+  display: block;
+}
+
+#animationButton .icon-play path {
+  fill: currentColor;
+}
+
+/* ---------- Recorrido guiado ---------- */
+
+/* Mientras dura el recorrido, su tarjeta reemplaza a la barra de capas */
+.arch-app.is-touring .arch-bottom {
+  display: none;
+}
+
+.arch-tour {
+  left: 50%;
+  bottom: 16px;
+  width: min(580px, calc(100% - 32px));
+  padding: 12px 16px 16px 20px;
+  transform: translateX(-50%);
+}
+
+.arch-tour-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.arch-tour-step {
+  color: var(--link);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Barra de progreso: un segmento por paso */
+.arch-tour-progress {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+  list-style: none;
+}
+
+.arch-tour-progress li {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  transition: background-color 0.25s;
+}
+
+.arch-tour-progress li.is-done {
+  background: rgba(143, 163, 255, 0.55);
+}
+
+.arch-tour-progress li.is-current {
+  background: linear-gradient(90deg, #8fa3ff, #df8ff2);
+}
+
+.arch-tour h2 {
+  margin-top: 12px;
+  color: var(--text-strong);
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
+
+.arch-tour h2:focus {
+  outline: none;
+}
+
+.arch-tour-text {
+  margin-top: 6px;
+  color: var(--text-soft);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.arch-tour-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.arch-tour-button {
+  padding: 9px 16px;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-strong);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.arch-tour-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.arch-tour-button.is-primary {
+  border-color: transparent;
+  background: var(--text-strong);
+  color: #0b0e13;
+}
+
+.arch-tour-button.is-primary:hover {
+  background: #ffffff;
+}
+
+.arch-tour-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.arch-tour-button:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
 }
 
 /* Zoom: arriba a la derecha (se corre a la izquierda cuando se abre el panel) */
@@ -741,8 +1581,11 @@ body.arch-body {
     font-size: 1.25rem;
   }
 
+  .arch-header-row {
+    margin-top: 8px;
+  }
+
   .arch-hint {
-    margin-top: 4px;
     font-size: 0.8rem;
   }
 
@@ -805,6 +1648,86 @@ body.arch-body {
   .arch-app.is-panel-open .arch-bottom {
     right: 10px;
   }
+
+  .arch-tour-start {
+    padding: 6px 14px 6px 10px;
+    font-size: 0.85rem;
+  }
+
+  .arch-tour {
+    right: 10px;
+    bottom: 10px;
+    left: 10px;
+    width: auto;
+    padding: 10px 12px 12px 16px;
+    transform: none;
+  }
+
+  .arch-tour h2 {
+    margin-top: 8px;
+    font-size: 1.15rem;
+  }
+
+  .arch-topics-start {
+    padding: 5px 12px 5px 10px;
+    font-size: 0.85rem;
+  }
+
+  /* Los temas ocupan toda la pantalla */
+  .arch-topics {
+    inset: 0;
+    width: auto;
+    border-radius: 0;
+  }
+
+  .arch-topics-body {
+    padding: 16px 16px 28px;
+  }
+
+  .topic-title {
+    font-size: 1.3rem;
+  }
+
+  .bar-row {
+    grid-template-columns: 1fr auto;
+  }
+
+  .bar-track {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .dot-row,
+  .dot-axis {
+    grid-template-columns: minmax(110px, 0.9fr) 1.6fr;
+    gap: 10px;
+  }
+
+  .servo-visuals {
+    grid-template-columns: 1fr;
+  }
+
+  .servo-gauge {
+    max-width: 220px;
+    margin: 0 auto;
+  }
+
+  /* Ancho mínimo legible del esquema (unos 10 px de texto); el resto se ve deslizando */
+  .hw-diagram {
+    min-width: 600px;
+  }
+
+  .hw-scroll-hint {
+    display: block;
+  }
+
+  .dot-tick.is-minor {
+    display: none;
+  }
+
+  .arch-tour-text {
+    font-size: 0.92rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -814,7 +1737,8 @@ body.arch-body {
   .arch-label,
   .arch-zoom,
   .arch-bottom,
-  .arch-panel-section summary::after {
+  .arch-panel-section summary::after,
+  .arch-tour-progress li {
     transition: none;
   }
 }

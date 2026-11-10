@@ -188,9 +188,9 @@
     var RATE_INTERVAL_MS = 1000;
     var MAX_LOGGED_TEXT = 60; // Un mensaje inválido se muestra recortado: puede ser cualquier cosa llegada por internet
     // Latido hacia el Arduino: con la mano quieta se repite el estado (el sketch del brazo frena a los 2 s sin mensajes)
-    var SERIAL_KEEPALIVE_MS = 400;
+    var SERIAL_KEEPALIVE_MS = CONFIG.serialKeepaliveMs;
     // Si el alumno con el control deja de enviar (el emisor repite su estado cada 1 s), el robot pasa a SIN_MANO
-    var HAND_STALE_MS = 3000;
+    var HAND_STALE_MS = CONFIG.handStaleMs;
     var STALE_CHECK_INTERVAL_MS = 500;
     var STATE_LABELS = {
       disconnected: "Desconectado",

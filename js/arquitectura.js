@@ -5,9 +5,14 @@
 // - Detalle: tooltip al pasar sobre una tarjeta o una línea; panel con información desplegable al elegir una tarjeta.
 // - Capas: resaltan un recorrido (datos, estado, video, energía, carga de la página o seguridad).
 
-import { REPO_URL, ZONES, ICONS, NODES, EDGES, LAYERS, LAYOUTS, LINE_KINDS } from "./arquitectura-contenido.js";
+import {
+  REPO_URL, ZONES, ICONS, NODES, EDGES, LAYERS, LAYOUTS, LINE_KINDS, TOUR, PACKET_CHAIN, PACKET_STREAMS,
+  TOPICS, NODE_TOPIC, LAYER_TOPIC
+} from "./arquitectura-contenido.js";
+import { initTopics, openTopic, closeTopics, isTopicsOpen } from "./arquitectura-temas.js";
 
 var SVG_NS = "http://www.w3.org/2000/svg";
+var XLINK_NS = "http://www.w3.org/1999/xlink";
 
 // ================= Configuración =================
 
@@ -27,6 +32,13 @@ var VIEW_MARGIN = 20;        // Margen libre alrededor del diagrama al encuadrar
 var KEEP_VISIBLE = 120;      // Al arrastrar, al menos esto del diagrama queda en pantalla
 var ANIMATION_MS = 380;
 var RESIZE_DELAY_MS = 150;
+
+var PACKET_SPEED = 200;          // Velocidad de los paquetes, en px del lienzo por segundo
+var PACKET_MIN_SECONDS = 0.35;   // Los tramos cortos no pasan más rápido que esto
+var PACKET_REST_SECONDS = 0.8;   // Pausa entre una vuelta completa del mensaje y la siguiente
+var STREAM_PACKETS = 3;          // Puntos que fluyen a la vez en el video y la energía
+var TOUR_MAX_ZOOM = 1.8;         // Cuánto puede acercarse el recorrido, relativo al encuadre completo
+var FRAME_PADDING = 70;          // Margen alrededor de los componentes de cada paso
 
 var WEB_COLOR = "#9aa3b5";   // Línea de carga de la página (la energía usa el ámbar del robot)
 var LAYER_NAMES = {
@@ -55,6 +67,15 @@ var panelTitle = document.getElementById("archPanelTitle");
 var panelBody = document.getElementById("archPanelBody");
 var tooltip = document.getElementById("archTooltip");
 var connectionsList = document.getElementById("archConnections");
+var animationButton = document.getElementById("animationButton");
+var tourStart = document.getElementById("archTourStart");
+var tourCard = document.getElementById("archTour");
+var tourStep = document.getElementById("archTourStep");
+var tourProgress = document.getElementById("archTourProgress");
+var tourTitle = document.getElementById("archTourTitle");
+var tourText = document.getElementById("archTourText");
+var tourPrev = document.getElementById("archTourPrev");
+var tourNext = document.getElementById("archTourNext");
 var reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
 var zoneById = {};
@@ -64,6 +85,10 @@ ZONES.forEach(function (zone) {
 var nodeById = {};
 NODES.forEach(function (node) {
   nodeById[node.id] = node;
+});
+var edgeById = {};
+EDGES.forEach(function (edge) {
+  edgeById[edge.id] = edge;
 });
 
 var layoutName = null;
@@ -80,6 +105,9 @@ var pointers = new Map();         // Punteros apoyados (mouse, dedo o lápiz)
 var drag = null;                  // Arrastre en curso
 var pinch = null;                 // Pellizco en curso
 var suppressClick = false;        // Un arrastre no tiene que abrir el componente donde terminó
+var svgRoot = null;               // SVG del dibujo actual (controla la animación de los paquetes)
+var isAnimationPaused = false;
+var tourIndex = -1;               // Paso del recorrido guiado (-1 = sin recorrido)
 
 // ================= Utilidades =================
 
@@ -284,6 +312,7 @@ function drawEdges(svg, geometries, arrows) {
     var colors = edgeColors(edge);
     var group = svgElement("g", { class: "arch-edge-group", "data-edge": edge.id });
     var path = svgElement("path", {
+      id: "arch-path-" + edge.id,
       class: "arch-edge arch-edge--" + edge.kind,
       d: geometries[edge.id].d,
       stroke: colors[0] === colors[1] ? colors[0] : "url(#arch-gradient-" + edge.id + ")"
@@ -391,7 +420,96 @@ function render(name) {
   drawLabels(labels, geometries);
 
   world.append(svg, labels, drawNodes());
+  svgRoot = svg;
+  drawPackets();
+  if (isAnimationPaused) {
+    svgRoot.pauseAnimations();
+  }
   applyHighlight();
+}
+
+// ================= Paquetes animados =================
+// Animaciones SMIL del propio SVG: cada punto recorre el trazo real de su línea (animateMotion + mpath).
+// El "mensaje" va encadenado: cada tramo empieza cuando termina el anterior (begin="anterior.end") y,
+// al terminar la vuelta del estado, arranca de nuevo. El video y la energía fluyen en continuo
+
+// Los ids de SMIL no pueden tener "-" (se confunde con una resta en begin): se usan "_"
+function smilId(edgeId) {
+  return "pk_" + edgeId.replace(/-/g, "_");
+}
+
+// La duración de cada tramo depende de su largo: todos los paquetes viajan a la misma velocidad
+function packetSeconds(edgeId) {
+  var path = svgRoot.querySelector("#arch-path-" + edgeId);
+  return Math.max(PACKET_MIN_SECONDS, path.getTotalLength() / PACKET_SPEED);
+}
+
+function appendPacket(edgeId, animationId, begin, seconds, isStream) {
+  var edge = edgeById[edgeId];
+  var color = edgeColors(edge)[1];
+  // Fuera de su tramo el punto queda oculto (si no, se vería quieto en el origen del dibujo)
+  var circle = svgElement("circle", {
+    class: "arch-packet",
+    r: edge.kind === "video" ? 4 : 5,
+    fill: color,
+    visibility: "hidden"
+  });
+  circle.style.setProperty("--color", color);
+
+  var motion = svgElement("animateMotion", {
+    id: animationId,
+    dur: seconds.toFixed(2) + "s",
+    begin: begin,
+    fill: "remove"
+  });
+  if (isStream) {
+    motion.setAttribute("repeatCount", "indefinite");
+  }
+  var mpath = svgElement("mpath", { href: "#arch-path-" + edgeId });
+  mpath.setAttributeNS(XLINK_NS, "xlink:href", "#arch-path-" + edgeId); // Navegadores que todavía piden xlink
+  motion.appendChild(mpath);
+
+  var show = svgElement("set", { attributeName: "visibility", to: "visible", begin: animationId + ".begin" });
+  if (!isStream) {
+    show.setAttribute("end", animationId + ".end");
+  }
+  circle.append(show, motion);
+  // Dentro del grupo de la línea: se atenúa junto con ella al elegir un componente o una capa
+  edgeGroups[edgeId].appendChild(circle);
+}
+
+function drawPackets() {
+  if (reducedMotion.matches) {
+    return; // Sin animaciones si el sistema pide reducir el movimiento
+  }
+  var lastId = smilId(PACKET_CHAIN[PACKET_CHAIN.length - 1]);
+  PACKET_CHAIN.forEach(function (edgeId, index) {
+    var begin = index === 0
+      ? "0.6s; " + lastId + ".end+" + PACKET_REST_SECONDS + "s"
+      : smilId(PACKET_CHAIN[index - 1]) + ".end";
+    appendPacket(edgeId, smilId(edgeId), begin, packetSeconds(edgeId), false);
+  });
+  PACKET_STREAMS.forEach(function (edgeId) {
+    var seconds = packetSeconds(edgeId);
+    for (var i = 0; i < STREAM_PACKETS; i++) {
+      appendPacket(edgeId, smilId(edgeId) + "_" + i, (seconds / STREAM_PACKETS * i).toFixed(2) + "s", seconds, true);
+    }
+  });
+}
+
+function setAnimationPaused(isPaused) {
+  isAnimationPaused = isPaused;
+  if (svgRoot) {
+    if (isPaused) {
+      svgRoot.pauseAnimations();
+    } else {
+      svgRoot.unpauseAnimations();
+    }
+  }
+  animationButton.setAttribute("aria-pressed", String(isPaused));
+  var label = isPaused ? "Reanudar la animación" : "Pausar la animación";
+  animationButton.setAttribute("aria-label", label);
+  animationButton.title = label;
 }
 
 // ================= Zoom y desplazamiento =================
@@ -427,7 +545,9 @@ function freeArea(includePanel) {
   var width = viewport.clientWidth;
   var height = viewport.clientHeight;
   var top = Math.max(VIEW_MARGIN, header.getBoundingClientRect().bottom + 12);
-  var bottom = Math.max(VIEW_MARGIN, height - bottomBar.getBoundingClientRect().top + 12);
+  // Abajo está la barra de capas o, durante el recorrido, la tarjeta del paso
+  var bottomElement = tourIndex >= 0 ? tourCard : bottomBar;
+  var bottom = Math.max(VIEW_MARGIN, height - bottomElement.getBoundingClientRect().top + 12);
   var right = VIEW_MARGIN;
   if (includePanel && !panel.hidden) {
     var panelRect = panel.getBoundingClientRect();
@@ -698,7 +818,11 @@ function applyHighlight() {
   var activeNodes = null;
   var activeEdges = null;
 
-  if (selectedId) {
+  if (tourIndex >= 0) {
+    // Paso del recorrido guiado: sus componentes y conexiones
+    activeNodes = new Set(TOUR[tourIndex].nodes);
+    activeEdges = new Set(TOUR[tourIndex].edges);
+  } else if (selectedId) {
     // El componente elegido, sus conexiones y sus vecinos
     activeNodes = new Set([selectedId]);
     activeEdges = new Set();
@@ -731,7 +855,9 @@ function applyHighlight() {
   world.classList.toggle("is-filtered", activeNodes !== null);
   Object.keys(nodeItems).forEach(function (id) {
     nodeItems[id].classList.toggle("is-active", Boolean(activeNodes && activeNodes.has(id)));
-    nodeItems[id].classList.toggle("is-selected", id === selectedId);
+    // En el recorrido, los componentes del paso se destacan igual que uno elegido
+    var isSpotlight = id === selectedId || (tourIndex >= 0 && activeNodes.has(id));
+    nodeItems[id].classList.toggle("is-selected", isSpotlight);
     nodeItems[id].firstChild.setAttribute("aria-expanded", String(id === selectedId));
   });
   Object.keys(edgeGroups).forEach(function (id) {
@@ -754,6 +880,9 @@ function setLayer(id) {
     return item.id === id;
   });
   layerCaption.textContent = layer.caption;
+  if (LAYER_TOPIC[id]) {
+    layerCaption.append(" ", topicLink(LAYER_TOPIC[id], "Leer más: ", "arch-caption-link"));
+  }
   if (selectedId) {
     closePanel(false);
   } else {
@@ -849,6 +978,19 @@ function linksContent(details) {
   return list;
 }
 
+// Botón que abre un tema a fondo (desde el panel de un componente o desde la explicación de una capa)
+function topicLink(topicId, prefix, className) {
+  var topic = TOPICS.find(function (item) {
+    return item.id === topicId;
+  });
+  var button = createElement("button", className || "arch-topic-link", prefix + topic.label + " →");
+  button.type = "button";
+  button.addEventListener("click", function () {
+    openTopic(topicId, button);
+  });
+  return button;
+}
+
 function fillPanel(node) {
   var details = node.details;
   panel.style.setProperty("--zone", zoneColor(node.id));
@@ -869,6 +1011,9 @@ function fillPanel(node) {
   }
   if ((details.files && details.files.length) || (details.links && details.links.length)) {
     panelBody.appendChild(detailsSection("Archivos y enlaces", linksContent(details), false));
+  }
+  if (NODE_TOPIC[node.id]) {
+    panelBody.appendChild(topicLink(NODE_TOPIC[node.id], "Para profundizar: "));
   }
   panelBody.scrollTop = 0;
 }
@@ -895,6 +1040,103 @@ function closePanel(returnFocus) {
   if (returnFocus && previous && nodeItems[previous]) {
     nodeItems[previous].firstChild.focus({ preventScroll: true });
   }
+}
+
+// ================= Recorrido guiado =================
+
+// Encuadra los componentes de un paso: los centra en la zona libre y acerca hasta TOUR_MAX_ZOOM
+function frameNodes(ids) {
+  var area = freeArea(true);
+  var halfW = layout.card.w / 2;
+  var halfH = layout.card.h / 2;
+  var minX = Infinity;
+  var minY = Infinity;
+  var maxX = -Infinity;
+  var maxY = -Infinity;
+  ids.forEach(function (id) {
+    var position = layout.pos[id];
+    minX = Math.min(minX, position[0] - halfW);
+    maxX = Math.max(maxX, position[0] + halfW);
+    minY = Math.min(minY, position[1] - halfH);
+    maxY = Math.max(maxY, position[1] + halfH);
+  });
+  var boxWidth = maxX - minX + FRAME_PADDING * 2;
+  var boxHeight = maxY - minY + FRAME_PADDING * 2;
+  var k = clamp(Math.min(area.width / boxWidth, area.height / boxHeight), fitScale, fitScale * TOUR_MAX_ZOOM);
+  var centerX = (minX + maxX) / 2;
+  var centerY = (minY + maxY) / 2;
+  moveTo(area.left + area.width / 2 - centerX * k, area.top + area.height / 2 - centerY * k, k, true);
+}
+
+function buildTourProgress() {
+  TOUR.forEach(function () {
+    tourProgress.appendChild(createElement("li"));
+  });
+}
+
+function showTourStep(index, moveFocus) {
+  tourIndex = index;
+  var step = TOUR[index];
+  tourStep.textContent = "Paso " + (index + 1) + " de " + TOUR.length;
+  tourTitle.textContent = step.title;
+  tourText.textContent = step.text;
+  tourPrev.disabled = index === 0;
+  tourNext.textContent = index === TOUR.length - 1 ? "Terminar" : "Siguiente →";
+  Array.prototype.forEach.call(tourProgress.children, function (item, itemIndex) {
+    item.classList.toggle("is-done", itemIndex < index);
+    item.classList.toggle("is-current", itemIndex === index);
+  });
+  hideTooltip();
+  applyHighlight();
+  frameNodes(step.nodes);
+  if (moveFocus) {
+    tourTitle.focus({ preventScroll: true });
+  }
+}
+
+function startTour() {
+  if (!panel.hidden) {
+    closePanel(false);
+  }
+  tourCard.hidden = false;
+  app.classList.add("is-touring");
+  updateBottomInset();
+  showTourStep(0, true);
+}
+
+function endTour(returnFocus) {
+  if (tourIndex < 0) {
+    return;
+  }
+  tourIndex = -1;
+  tourCard.hidden = true;
+  app.classList.remove("is-touring");
+  updateBottomInset();
+  applyHighlight();
+  fitView(true);
+  if (returnFocus) {
+    tourStart.focus({ preventScroll: true });
+  }
+}
+
+function nextTourStep() {
+  if (tourIndex === TOUR.length - 1) {
+    endTour(true);
+  } else {
+    showTourStep(tourIndex + 1, false);
+  }
+}
+
+function previousTourStep() {
+  if (tourIndex > 0) {
+    showTourStep(tourIndex - 1, false);
+  }
+}
+
+// En el celular el zoom va justo arriba de la barra de abajo (capas o recorrido), cuyo alto cambia
+function updateBottomInset() {
+  var element = tourIndex >= 0 || !tourCard.hidden ? tourCard : bottomBar;
+  app.style.setProperty("--bottom-h", element.offsetHeight + "px");
 }
 
 // ================= Leyenda y texto alternativo =================
@@ -991,6 +1233,7 @@ viewport.addEventListener("click", function (event) {
 world.addEventListener("click", function (event) {
   var node = event.target.closest(".arch-node");
   if (node) {
+    endTour(false); // Elegir un componente durante el recorrido lo termina y abre el detalle
     selectNode(node.dataset.node, event.detail === 0); // detail 0: activado con el teclado
   }
 });
@@ -1030,10 +1273,37 @@ document.getElementById("archPanelClose").addEventListener("click", function () 
   closePanel(true);
 });
 
+animationButton.addEventListener("click", function () {
+  setAnimationPaused(!isAnimationPaused);
+});
+// Sin animaciones (preferencia del sistema) el botón de pausa no tiene nada que hacer
+animationButton.hidden = reducedMotion.matches;
+
+tourStart.addEventListener("click", startTour);
+tourNext.addEventListener("click", nextTourStep);
+tourPrev.addEventListener("click", previousTourStep);
+document.getElementById("archTourClose").addEventListener("click", function () {
+  endTour(true);
+});
+// Dentro de la tarjeta del recorrido, las flechas cambian de paso
+tourCard.addEventListener("keydown", function (event) {
+  if (event.key === "ArrowRight") {
+    event.preventDefault();
+    nextTourStep();
+  } else if (event.key === "ArrowLeft") {
+    event.preventDefault();
+    previousTourStep();
+  }
+});
+
 document.addEventListener("keydown", function (event) {
   if (event.key === "Escape") {
     hideTooltip();
-    if (!panel.hidden) {
+    if (isTopicsOpen()) {
+      closeTopics();
+    } else if (tourIndex >= 0) {
+      endTour(true);
+    } else if (!panel.hidden) {
       closePanel(true);
     }
   }
@@ -1052,10 +1322,36 @@ window.addEventListener("resize", function () {
 buildLegend();
 buildLayers();
 buildConnectionsList();
-// En el celular el zoom va justo arriba de la barra de capas, cuyo alto cambia (texto de la capa, leyenda abierta)
-new ResizeObserver(function () {
-  app.style.setProperty("--bottom-h", bottomBar.offsetHeight + "px");
-}).observe(bottomBar);
+buildTourProgress();
+
+// Temas a fondo: comparten el tooltip del diagrama. Al abrirse se cierran el detalle y el recorrido
+initTopics({
+  tooltip: {
+    showAt: function (title, text, color, clientX, clientY) {
+      showTooltip(title, text, color);
+      placeTooltipAt(clientX, clientY);
+    },
+    showBelow: function (title, text, color, element) {
+      showTooltip(title, text, color);
+      placeTooltipBelow(element);
+    },
+    move: placeTooltipAt,
+    hide: hideTooltip
+  },
+  onOpen: function () {
+    endTour(false);
+    if (!panel.hidden) {
+      closePanel(false);
+    }
+  }
+});
+document.getElementById("archTopicsStart").addEventListener("click", function (event) {
+  openTopic(null, event.currentTarget);
+});
+// En el celular el zoom va justo arriba de la barra de abajo, cuyo alto cambia (texto de la capa, leyenda, recorrido)
+var bottomObserver = new ResizeObserver(updateBottomInset);
+bottomObserver.observe(bottomBar);
+bottomObserver.observe(tourCard);
 
 // La leyenda empieza cerrada: abierta, crece hacia arriba como un panel más, sin mover el diagrama
 updateLayout(false);

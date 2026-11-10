@@ -2043,6 +2043,100 @@ h1 {
   text-align: center;
 }
 
+/* Enlace a la infografía (arquitectura.html): cierra la sección con el mismo recorrido, explicado a fondo.
+   El borde degradado repite los colores de las cuatro zonas del diagrama */
+.flow-more {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 16px;
+  padding: 16px 20px;
+  border: 1.5px solid transparent;
+  border-radius: 14px;
+  background:
+    linear-gradient(var(--bg), var(--bg)) padding-box,
+    linear-gradient(90deg, var(--zone-student), var(--zone-cloud), var(--zone-teacher), var(--zone-robot)) border-box;
+  color: var(--text);
+  text-decoration: none;
+  transition: transform 0.15s;
+}
+
+.flow-more:hover {
+  transform: translateY(-2px);
+}
+
+.flow-more:focus-visible {
+  outline: 3px solid var(--zone-teacher);
+  outline-offset: 3px;
+}
+
+.flow-more-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--zone-student), var(--zone-cloud) 40%, var(--zone-teacher) 70%, var(--zone-robot));
+  color: var(--zone-icon);
+}
+
+.flow-more-icon svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.flow-more-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.flow-more-text strong {
+  font-size: 1.05rem;
+}
+
+.flow-more-text span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.flow-more-link {
+  flex: none;
+  color: var(--zone-teacher);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* En el celular el "Abrir" baja a su propia línea, alineado con el texto */
+@media (max-width: 560px) {
+  .flow-more {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .flow-more-link {
+    width: 100%;
+    padding-left: 60px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-more {
+    transition: none;
+  }
+
+  .flow-more:hover {
+    transform: none;
+  }
+}
+
 /* ---------- Notas y pie ---------- */
 
 .landing-notes {

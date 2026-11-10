@@ -381,3 +381,176 @@ export var LINE_KINDS = [
   { kind: "energy", label: "Energía" },
   { kind: "web", label: "Carga de la página" }
 ];
+
+// Recorrido guiado (§6 del guion): cada paso resalta y encuadra sus componentes y conexiones
+export var TOUR = [
+  { title: "Todo empieza con una mano", nodes: ["webcam"], edges: [],
+    text: "La webcam del alumno filma. El video no sale de su PC: se procesa ahí mismo." },
+  { title: "21 puntos", nodes: ["webcam", "mediapipe"], edges: ["e-video-local"],
+    text: "MediaPipe ubica la muñeca, los nudillos y las puntas de los dedos en cada cuadro del video." },
+  { title: "Un gesto se vuelve texto", nodes: ["mediapipe", "emisor"], edges: ["e-puntos"],
+    text: "Las proporciones de la mano se convierten en una línea de texto: X:52 Y:31 D:5 G:ABIERTA." },
+  { title: "Solo si tenés el control", nodes: ["emisor", "broker"], edges: ["s-emisor"],
+    text: "El emisor publica nada más cuando el profesor lo eligió. Los demás alumnos esperan su turno." },
+  { title: "Viaje por internet", nodes: ["emisor", "broker", "receptor"], edges: ["e-mensaje", "e-reparto"],
+    text: "El broker recibe el mensaje y lo reparte a quien está suscrito: publicación y suscripción, por sala." },
+  { title: "El profesor revisa", nodes: ["receptor"], edges: ["e-reparto"],
+    text: "El receptor compara el mensaje con el formato exacto. Si no coincide, lo descarta: nada raro llega al robot." },
+  { title: "Del navegador al cable", nodes: ["receptor", "webserial", "arduino"], edges: ["e-validado", "e-usb"],
+    text: "Web Serial lo manda por el cable USB, a 9600 baudios. El mismo cable alimenta al Arduino." },
+  { title: "El Arduino decide", nodes: ["arduino"], edges: ["e-usb", "e-pwm"],
+    text: "Mano abierta → derecha; cerrada → izquierda. Vuelve a validar el mensaje y respeta los topes de 20° a 160°." },
+  { title: "Energía aparte", nodes: ["fuente", "servos", "arduino"], edges: ["p-servos", "p-gnd"],
+    text: "La fuente ATX alimenta a los motores con 5 V. Su GND se une con el del Arduino: sin eso, el servo no entiende la señal." },
+  { title: "El servo gira", nodes: ["servos", "brazo"], edges: ["e-pwm", "e-mueve"],
+    text: "Un pulso cada 20 ms indica el ángulo. El sketch avanza de a 1°, a 40° por segundo, para que el brazo sea suave." },
+  { title: "El brazo responde", nodes: ["arduino", "webserial", "receptor", "broker", "emisor"], edges: ["s-arduino", "s-serial", "s-receptor", "s-emisor"],
+    text: "«OK: BRAZO DERECHA 96 96»: lo que hizo el brazo de verdad vuelve hasta el alumno." },
+  { title: "Y el alumno lo ve", nodes: ["camarabrazo", "vdo", "visor"], edges: ["v-webrtc", "v-visor"],
+    text: "La cámara del brazo llega directo al alumno por WebRTC, sin pasar por el broker." },
+  { title: "Si algo se corta…", nodes: ["receptor", "arduino", "broker"], edges: [],
+    text: "Tres «hombres muertos» frenan el robot: el receptor a los 3 s sin datos, el Arduino a los 2 s sin mensajes, y el broker avisa en unos 15 s si alguien se cae." }
+];
+
+// Animación de los paquetes: el "mensaje" recorre la ida y después vuelve el estado, en cadena.
+// El video y la energía fluyen en continuo
+export var PACKET_CHAIN = [
+  "e-video-local", "e-puntos", "e-mensaje", "e-reparto", "e-validado", "e-usb", "e-pwm", "e-mueve",
+  "s-arduino", "s-serial", "s-receptor", "s-emisor"
+];
+export var PACKET_STREAMS = ["v-webrtc", "v-visor", "p-servos"];
+
+// ================= Temas a fondo (§7 del guion) =================
+// Textos de cada pestaña. Los números que dependen del código (tiempos, intervalos, tope del video, topics)
+// no van acá: los calcula js/arquitectura-temas.js importando config.js, protocol.js y mqtt-link.js
+
+export var TOPICS = [
+  {
+    id: "hardware", label: "Hardware", title: "Arduino, servos y alimentación",
+    intro: "El robot junta dos mundos: la señal, que va por cables finos y casi no consume, y la potencia, que es la que mueve los motores. El Arduino está en el medio: escucha a la computadora por USB y les dice a los servos a qué ángulo ir."
+  },
+  {
+    id: "mensaje", label: "El mensaje", title: "Una línea de texto de punta a punta",
+    intro: "Todo el sistema habla el mismo idioma: una línea de texto corta. Es igual en el navegador del alumno, en el broker, en la página del profesor y en el cable USB, y por eso se puede leer y probar a mano en cada tramo."
+  },
+  {
+    id: "mqtt", label: "MQTT", title: "Publicar y suscribirse",
+    intro: "MQTT es un protocolo pensado para dispositivos que mandan datos chicos y seguido. Nadie se conecta directo con nadie: cada página publica en un «topic» y el broker reparte cada mensaje entre quienes se suscribieron a ese topic."
+  },
+  {
+    id: "video", label: "Video", title: "El video va por otro camino",
+    intro: "El video pesa cientos de veces más que los datos de la mano. Por eso no pasa por el broker: viaja directo entre las dos computadoras con WebRTC, la misma tecnología de las videollamadas del navegador."
+  },
+  {
+    id: "seguridad", label: "Seguridad", title: "Cada punta desconfía de la otra",
+    intro: "Un robot controlado por internet tiene que frenar solo si algo se corta, y no puede obedecer cualquier texto que llegue. Hay varias capas de protección, y ninguna depende de que las demás funcionen."
+  },
+  {
+    id: "web", label: "La web", title: "HTML, CSS y JavaScript, sin frameworks",
+    intro: "Todo el proyecto son archivos estáticos: no hay servidor propio ni paso de compilación. Lo que está en el repositorio es exactamente lo que corre en el navegador."
+  }
+];
+
+// Componente → tema relacionado (botón "Para profundizar" del panel de detalle)
+export var NODE_TOPIC = {
+  webcam: "mensaje", mediapipe: "mensaje", emisor: "mensaje", visor: "video",
+  hosting: "web", broker: "mqtt", vdo: "video",
+  receptor: "seguridad", webserial: "hardware", camarabrazo: "video",
+  arduino: "hardware", servos: "hardware", brazo: "hardware", fuente: "hardware", leds: "hardware"
+};
+
+// Capa → tema relacionado (enlace "Leer más" de la barra de capas)
+export var LAYER_TOPIC = { datos: "mensaje", estado: "mqtt", video: "video", energia: "hardware", web: "web", seguridad: "seguridad" };
+
+// Comparación de placas (fichas oficiales; medidas del CAD oficial de Arduino)
+export var BOARD_ROWS = [
+  ["Microcontrolador", "ATmega328P, 16 MHz", "ATmega2560, 16 MHz"],
+  ["Memoria flash", "32 KB", "256 KB (8 KB del bootloader)"],
+  ["SRAM / EEPROM", "2 KB / 1 KB", "8 KB / 4 KB"],
+  ["Pines digitales", "14 (6 con PWM)", "54 (15 con PWM)"],
+  ["Entradas analógicas", "6", "16"],
+  ["Puertos serie", "1", "4"],
+  ["USB", "USB-B, chip ATmega16U2", "USB-B, chip ATmega16U2"],
+  ["Placa", "68,58 × 53,34 mm", "101,60 × 53,34 mm"]
+];
+
+// Cables del esquema de conexión: qué lleva cada uno (también es la tabla accesible del esquema)
+export var WIRES = [
+  { id: "usb", label: "Cable USB", from: "PC del profesor", to: "Arduino", carries: "Los mensajes a 9600 baudios y 5 V para el Arduino." },
+  { id: "signal1", label: "Señal del servo 1", from: "Pin 5", to: "Servo 1 (cable naranja)", carries: "Pulsos de 544 a 2400 µs cada 20 ms." },
+  { id: "signal2", label: "Señal del servo 2", from: "Pin 6", to: "Servo 2 (cable naranja)", carries: "Pulsos de 544 a 2400 µs cada 20 ms." },
+  { id: "power", label: "+5 V de los servos", from: "Fuente ATX (cable rojo)", to: "Servos (cable rojo)", carries: "La corriente de los motores, que el USB no alcanza a dar." },
+  { id: "ground", label: "GND de los servos", from: "Fuente ATX (cable negro)", to: "Servos (cable marrón)", carries: "El retorno de la corriente de los motores." },
+  { id: "common", label: "GND común", from: "Fuente ATX (cable negro)", to: "GND del Arduino", carries: "La referencia compartida: sin ella, el servo no entiende la señal." },
+  { id: "pson", label: "Puente de encendido", from: "Cable verde (PS_ON#)", to: "Cable negro (GND)", carries: "Hace que la fuente arranque al enchufarla, sin una PC." },
+  { id: "leds", label: "LEDs (sketch alternativo)", from: "Pines 8, 9 y 10", to: "Cátodo de cada LED", carries: "Se encienden con LOW: el ánodo va a 5 V con una resistencia de 220 a 330 Ω." }
+];
+
+// Mensajes del protocolo (README y sketches)
+export var MESSAGE_ROWS = [
+  ["X:52 Y:31 D:2 G:V", "Emisor → receptor → Arduino", "Posición, dedos y gesto de la mano."],
+  ["SIN_MANO", "Emisor o receptor → Arduino", "No hay mano, se cortó algo o nadie tiene el control: el robot vuelve a reposo."],
+  ["LISTO: …", "Arduino → receptor", "Saludo al arrancar: la página espera esto para empezar a enviar."],
+  ["OK: BRAZO IZQUIERDA 72 72", "Arduino → receptor → alumnos", "Lo que hizo el brazo: dirección y ángulo de cada motor."],
+  ["OK: LEDS 2", "Arduino → receptor → alumnos", "Con el sketch de LEDs: cuántos quedaron encendidos."],
+  ["AVISO: …", "Arduino → receptor", "El brazo frenó porque dejaron de llegar mensajes."],
+  ["ERROR: …", "Arduino → receptor", "El mensaje no se entendió y se descartó."]
+];
+
+// Conceptos de MQTT
+export var MQTT_CONCEPTS = [
+  ["Topic", "La «dirección» de un mensaje, con niveles separados por barras: robotica/clase/control."],
+  ["Publicar y suscribirse", "Quien publica no sabe quién escucha: el broker entrega cada mensaje a los suscriptos de ese topic."],
+  ["QoS 0 y QoS 1", "QoS 0 se manda una vez y listo (los datos de la mano: llega otro enseguida). QoS 1 se repite hasta que el broker confirma (los estados)."],
+  ["Mensaje retenido", "El broker guarda el último de cada topic y se lo da a quien se conecta después: un alumno que entra tarde ya sabe quién tiene el control."],
+  ["Last Will", "Un mensaje que cada página deja encargado al conectarse: si se corta sin despedirse, el broker lo publica en su nombre («offline»)."],
+  ["Keepalive", "Cada cliente da señales de vida cada tantos segundos; si pasa 1,5 veces ese tiempo sin noticias, el broker lo da por caído."]
+];
+
+// Quién publica en cada topic y qué lleva (las rutas las arma buildTopics() de mqtt-link.js)
+export var TOPIC_ROWS = [
+  { key: "studentStatus", publisher: "Emisor (y el broker, con el Last Will)", content: "online / offline, retenido" },
+  { key: "studentHand", publisher: "Emisor, solo con el control", content: "El mensaje de la mano" },
+  { key: "control", publisher: "Receptor", content: "Alias de quien controla (vacío = nadie), retenido" },
+  { key: "leds", publisher: "Receptor", content: "OK: LEDS n confirmado por el Arduino, retenido" },
+  { key: "arm", publisher: "Receptor", content: "OK: BRAZO … informado por el brazo, retenido" },
+  { key: "video", publisher: "Receptor", content: "VIDEO <id> <clave> (vacío = cámara apagada), retenido" },
+  { key: "receiver", publisher: "Receptor (y el broker, con el Last Will)", content: "online / offline, retenido" }
+];
+
+// Permisos por usuario en EMQX (README): lo que no está permitido, se deniega
+export var ACL_ROWS = [
+  ["emisor", "Publicar", "alumnos/+/estado y alumnos/+/mano"],
+  ["emisor", "Suscribirse", "control, leds, brazo, video y receptor"],
+  ["receptor", "Suscribirse", "alumnos/+/estado y alumnos/+/mano"],
+  ["receptor", "Publicar", "control, leds, brazo, video y receptor"]
+];
+
+// Capas de seguridad
+export var SECURITY_ITEMS = [
+  ["Sin secretos en el código", "El sitio es público: el usuario y la contraseña del broker se escriben en la página al conectarse y nunca se guardan."],
+  ["Permisos por rol", "El usuario «emisor» no puede publicar en control: ningún alumno puede darse el control a sí mismo."],
+  ["Validación doble", "El receptor descarta todo mensaje que no respete el formato exacto, y el sketch del Arduino vuelve a validarlo."],
+  ["Sala y alias restringidos", "Solo minúsculas, números y guiones: así no se pueden usar los comodines de MQTT (+ y #) para leer topics ajenos."],
+  ["Iframe sin cámara", "El visor del brazo no tiene permiso de cámara ni de micrófono: lo garantiza el navegador."],
+  ["Clave de video por sesión", "El ID y la clave del video cambian cada vez que el profesor enciende la cámara."]
+];
+
+// La web: capas del proyecto y sus archivos
+export var WEB_ROWS = [
+  ["Páginas", "HTML", "index.html, emisor.html, receptor.html, hand-tracking.html, arquitectura.html"],
+  ["Estilos", "CSS con variables (tokens de color, modo oscuro)", "css/app.css, css/arquitectura.css"],
+  ["Detección de la mano", "MediaPipe Hand Landmarker (WebAssembly + GPU)", "js/hand-tracker.js"],
+  ["Mensajes", "Formato y validación", "js/protocol.js"],
+  ["Internet", "MQTT.js sobre WebSocket seguro", "js/mqtt-link.js, js/config.js"],
+  ["Video", "VDO.Ninja (WebRTC) en iframes", "js/video-link.js"],
+  ["USB", "Web Serial API", "js/serial-link.js"],
+  ["Arduino", "C++ (sketches .ino)", "arduino/brazo_2_motores, arduino/hand_leds"]
+];
+
+export var WEB_ITEMS = [
+  ["Módulos nativos", "Cada archivo JavaScript importa lo que necesita (import / export): sin empaquetador ni compilación."],
+  ["Orígenes seguros", "La cámara y Web Serial solo funcionan con https o localhost: por eso las páginas no andan abiertas con doble clic."],
+  ["Librerías con versión fijada", "MediaPipe y MQTT.js se cargan desde un CDN con un número de versión exacto: una actualización no puede romper la clase."],
+  ["Accesibilidad", "Colores con contraste verificado, navegación con teclado, textos para lectores de pantalla y respeto por la preferencia de reducir el movimiento."]
+];

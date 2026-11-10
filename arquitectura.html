@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Infografía interactiva de la arquitectura del brazo robot por gestos: hardware, Web Serial, MediaPipe, MQTT y video en vivo" />
+  <title>Cómo funciona por dentro · Brazo robot por gestos</title>
+  <link rel="icon" href="data:," />
+  <!-- Tipografía del sitio: Space Grotesk (Google Fonts), grotesca de aire técnico y muy legible -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400..700&display=swap" />
+  <link rel="stylesheet" href="css/app.css" />
+  <link rel="stylesheet" href="css/arquitectura.css" />
+</head>
+<body class="arch-body">
+  <main class="arch-app" id="archApp">
+    <!-- Lienzo navegable a pantalla completa: arrastrar para moverse, rueda o pellizco para acercar.
+         Lo dibuja js/arquitectura.js con los datos de js/arquitectura-contenido.js -->
+    <div class="arch-viewport" id="archViewport" tabindex="0"
+         aria-label="Diagrama de la arquitectura. Flechas para moverse, más y menos para acercar o alejar, cero para encuadrar."
+         aria-describedby="archConnectionsTitle">
+      <div class="arch-world" id="archWorld"></div>
+      <noscript><p class="arch-file-warning">El diagrama necesita JavaScript.</p></noscript>
+    </div>
+
+    <!-- Paneles flotantes sobre el lienzo -->
+    <header class="arch-overlay arch-header" id="archHeader">
+      <p class="arch-eyebrow"><a class="arch-back" href="index.html">← Brazo robot por gestos</a> · arquitectura</p>
+      <h1>
+        <span class="title-icon title-icon-all" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="6" rx="1" /><rect x="2" y="16" width="6" height="6" rx="1" /><rect x="16" y="16" width="6" height="6" rx="1" /><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3M12 12V8" /></svg>
+        </span>Cómo funciona por dentro
+      </h1>
+      <p class="arch-lead">Del gesto de un alumno al motor de un robot, a miles de kilómetros: todo lo que pasa en el medio.</p>
+      <p class="arch-hint">
+        <span class="arch-hint-long">Arrastrá para moverte · rueda o pellizco para acercar · elegí un componente para ver sus detalles</span>
+        <span class="arch-hint-short">Arrastrá · pellizcá para acercar · tocá un componente</span>
+      </p>
+    </header>
+
+    <div class="arch-overlay arch-zoom" id="archZoom" role="group" aria-label="Zoom">
+      <button type="button" id="zoomInButton" aria-label="Acercar" title="Acercar (+)">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+      </button>
+      <output id="zoomValue" aria-live="off">100 %</output>
+      <button type="button" id="zoomOutButton" aria-label="Alejar" title="Alejar (−)">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14" /></svg>
+      </button>
+      <button type="button" id="zoomFitButton" aria-label="Encuadrar todo" title="Encuadrar todo (0)">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4" /></svg>
+      </button>
+    </div>
+
+    <!-- Capas, su explicación, la leyenda y los créditos -->
+    <div class="arch-overlay arch-bottom" id="archBottom">
+      <p class="arch-layer-caption" id="archLayerCaption" aria-live="polite"></p>
+      <div class="arch-layers" id="archLayers" role="group" aria-label="Capas del diagrama"></div>
+      <details class="arch-legend-box" id="archLegendBox">
+        <summary>Leyenda y créditos</summary>
+        <div class="arch-legend" id="archLegend"></div>
+        <p class="arch-credits">
+          Diseño y desarrollo: Luciano Fritschy ·
+          <a href="https://www.linkedin.com/in/lucianofritschy/">LinkedIn</a> ·
+          <a href="https://github.com/luabfr">GitHub</a><br />
+          Proyecto del curso de robótica con Arduino ·
+          <a href="https://github.com/luabfr/brazo-robot-por-gestos">código en GitHub</a>
+        </p>
+      </details>
+    </div>
+
+    <!-- Detalle del componente elegido: en escritorio a la derecha, en el celular como hoja desde abajo -->
+    <aside class="arch-panel" id="archPanel" aria-labelledby="archPanelTitle" hidden>
+      <div class="arch-panel-header">
+        <span class="arch-panel-icon" id="archPanelIcon" aria-hidden="true"></span>
+        <div class="arch-panel-heading">
+          <p class="arch-panel-zone" id="archPanelZone"></p>
+          <h2 id="archPanelTitle" tabindex="-1"></h2>
+        </div>
+        <button type="button" class="arch-panel-close" id="archPanelClose" aria-label="Cerrar detalles" title="Cerrar (Esc)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+        </button>
+      </div>
+      <div class="arch-panel-body" id="archPanelBody"></div>
+    </aside>
+
+    <div class="arch-tooltip" id="archTooltip" role="tooltip" hidden></div>
+
+    <!-- Para lectores de pantalla: cada línea del diagrama, en texto -->
+    <section class="visually-hidden" aria-labelledby="archConnectionsTitle">
+      <h2 id="archConnectionsTitle">Conexiones del diagrama</h2>
+      <ul id="archConnections"></ul>
+    </section>
+  </main>
+
+  <!-- Script clásico (no módulo) para que corra también desde file://: abierta con doble clic, el navegador
+       bloquea los módulos de JavaScript y el diagrama quedaría vacío sin explicación -->
+  <script>
+    if (window.location.protocol === "file:") {
+      document.getElementById("archViewport").innerHTML =
+        '<div class="arch-file-warning">' +
+        "<strong>El diagrama no se puede dibujar desde un archivo abierto con doble clic.</strong>" +
+        "<p>El navegador bloquea los módulos de JavaScript en <code>file://</code>. Abrí la página desde un servidor local: " +
+        "en la carpeta del proyecto, <code>python -m http.server 8000</code> y después " +
+        "<code>http://localhost:8000/arquitectura.html</code>. O desde la versión publicada en GitHub Pages.</p>" +
+        "</div>";
+    }
+  </script>
+  <script type="module" src="js/arquitectura.js"></script>
+</body>
+</html>

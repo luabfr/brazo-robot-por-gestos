@@ -1,0 +1,820 @@
+/* Infografía de arquitectura (arquitectura.html): un lienzo oscuro a pantalla completa que se recorre con
+   arrastre y zoom, con paneles flotantes encima (encabezado, zoom, capas y detalle).
+   Es oscura en modo claro y oscuro: el diagrama es un "plano técnico", como el video del emisor.
+   El lienzo usa píxeles a zoom 100 %: --x / --y son las coordenadas de cada elemento y js/arquitectura.js
+   aplica el zoom y el desplazamiento con transform */
+
+body.arch-body {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  display: block;
+  padding: 0;
+  overflow: hidden;
+  background: #0b0e13;
+  color: #e9edf4;
+}
+
+.arch-app {
+  /* Paleta de esta página: siempre oscura */
+  --glass: rgba(14, 19, 30, 0.8);
+  --glass-solid: rgba(14, 19, 30, 0.95);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --text-strong: #f2f5fa;
+  --text-soft: #c9d0dc;
+  --text-muted: #a3acbd;
+  --link: #4fcacc;
+  --panel-width: 400px;
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.arch-app a {
+  color: var(--link);
+}
+
+/* ---------- Lienzo ---------- */
+
+/* La retícula de puntos (primera capa del fondo) se mueve y escala con el diagrama desde el JS;
+   el brillo de la segunda capa queda fijo */
+.arch-viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none; /* el arrastre y el pellizco los maneja la página, no el navegador */
+  user-select: none;
+  background-color: #0b0e13;
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.08) 1px, transparent 1.4px),
+    radial-gradient(ellipse 70% 55% at 50% 30%, #172035, transparent 75%);
+  background-size: 28px 28px, 100% 100%;
+}
+
+.arch-viewport:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 3px var(--link);
+}
+
+.arch-viewport.is-dragging {
+  cursor: grabbing;
+}
+
+.arch-world {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+
+.arch-world > svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.arch-zone {
+  fill-opacity: 0.05;
+}
+
+.arch-zone-divider {
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-dasharray: 4 8;
+}
+
+.arch-zone-label {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* Líneas: cada tipo de conexión con su trazo (los colores salen de las zonas) */
+.arch-edge {
+  fill: none;
+  stroke-width: 2.25;
+  stroke-linecap: round;
+}
+
+.arch-edge--status {
+  stroke-width: 1.5;
+  stroke-dasharray: 5 6;
+}
+
+.arch-edge--video {
+  stroke-width: 3.25;
+}
+
+.arch-edge--energy {
+  stroke-width: 2;
+  stroke-dasharray: 8 6;
+}
+
+.arch-edge--web {
+  stroke-width: 1.25;
+  stroke-dasharray: 1 6;
+}
+
+/* Área sensible al mouse, más ancha que la línea */
+.arch-edge-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 18;
+  pointer-events: stroke;
+  cursor: help;
+}
+
+/* Textos de las líneas y tarjetas: ubicados con las coordenadas del lienzo */
+.arch-label,
+.arch-node-item {
+  position: absolute;
+  left: calc(var(--x) * 1px);
+  top: calc(var(--y) * 1px);
+  transform: translate(-50%, -50%);
+}
+
+.arch-label {
+  padding: 3px 11px;
+  border: 1px solid color-mix(in srgb, var(--color) 45%, transparent);
+  border-radius: 999px;
+  background: #0b0e13;
+  color: var(--color);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.arch-label--mono {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.arch-nodes {
+  list-style: none;
+}
+
+.arch-node-item {
+  width: calc(var(--card-w) * 1px);
+}
+
+.arch-node {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: calc(var(--card-h) * 1px);
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--zone) 40%, transparent);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.015)), #111725;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+  color: inherit;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.arch-node:hover {
+  border-color: var(--zone);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4), 0 0 26px color-mix(in srgb, var(--zone) 32%, transparent);
+}
+
+.arch-node:focus-visible {
+  outline: 2px solid var(--zone);
+  outline-offset: 3px;
+}
+
+/* Círculo del ícono en el color de la zona, con un brillo suave */
+.arch-node-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--zone);
+  color: #0b0e13;
+  box-shadow: 0 0 18px color-mix(in srgb, var(--zone) 45%, transparent);
+}
+
+.arch-node-icon svg,
+.arch-panel-icon svg {
+  width: 58%;
+  height: 58%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.arch-node-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.arch-node-text strong {
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+.arch-node-text small {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* Componente elegido: borde del color de su zona y un halo */
+.arch-node-item.is-selected .arch-node {
+  border-color: var(--zone);
+  box-shadow: 0 0 0 2px var(--zone), 0 0 36px color-mix(in srgb, var(--zone) 45%, transparent);
+}
+
+/* Con un componente elegido o una capa activa, lo que no participa se atenúa */
+.arch-node-item,
+.arch-edge-group,
+.arch-label {
+  transition: opacity 0.25s;
+}
+
+.arch-world.is-filtered .arch-node-item:not(.is-active) {
+  opacity: 0.25;
+}
+
+.arch-world.is-filtered .arch-edge-group:not(.is-active),
+.arch-world.is-filtered .arch-label:not(.is-active) {
+  opacity: 0.1;
+}
+
+/* ---------- Paneles flotantes ---------- */
+
+.arch-overlay {
+  position: absolute;
+  z-index: 2;
+  border: 1px solid var(--glass-border);
+  border-radius: 18px;
+  background: var(--glass);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.4);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+/* Encabezado: arriba a la izquierda */
+.arch-header {
+  top: 16px;
+  left: 16px;
+  max-width: min(560px, calc(100% - 120px));
+  padding: 16px 20px;
+}
+
+.arch-eyebrow {
+  color: var(--link);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.arch-back {
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.arch-back:hover {
+  text-decoration: underline;
+}
+
+.arch-header h1 {
+  margin-top: 6px;
+  color: var(--text-strong);
+  font-size: clamp(1.35rem, 0.9rem + 1.2vw, 1.85rem);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+/* Ícono del título con las cuatro zonas: alumno, internet, profesor y robot */
+.title-icon-all {
+  background: linear-gradient(135deg, #8fa3ff, #df8ff2 38%, #4fcacc 68%, #f7b04a);
+  color: #0b0e13;
+}
+
+.arch-lead {
+  margin-top: 6px;
+  color: var(--text-soft);
+  font-size: 0.95rem;
+}
+
+.arch-hint {
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* La ayuda corta es la del celular */
+.arch-hint-short {
+  display: none;
+}
+
+/* Zoom: arriba a la derecha (se corre a la izquierda cuando se abre el panel) */
+.arch-zoom {
+  top: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px;
+  transition: right 0.25s;
+}
+
+.arch-zoom button,
+.arch-panel-close {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-strong);
+  cursor: pointer;
+}
+
+.arch-zoom button:hover,
+.arch-panel-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.arch-zoom button:focus-visible,
+.arch-panel-close:focus-visible,
+.arch-layer:focus-visible,
+.arch-connection:focus-visible,
+.arch-legend-box summary:focus-visible,
+.arch-panel-section summary:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+.arch-zoom svg,
+.arch-panel-close svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.arch-zoom output {
+  padding: 2px 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Capas, su explicación y la leyenda: abajo a la derecha */
+.arch-bottom {
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: min(940px, calc(100% - 32px));
+  padding: 12px 14px;
+  transition: right 0.25s;
+}
+
+.arch-layer-caption {
+  color: var(--text-soft);
+  font-size: 0.92rem;
+}
+
+.arch-layers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.arch-layer {
+  padding: 6px 13px;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-soft);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.arch-layer:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.arch-layer[aria-pressed="true"] {
+  border-color: transparent;
+  background: var(--text-strong);
+  color: #0b0e13;
+}
+
+.arch-legend-box summary {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.arch-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 28px;
+  margin-top: 10px;
+  color: var(--text-soft);
+  font-size: 0.88rem;
+}
+
+.arch-legend-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  list-style: none;
+}
+
+.arch-legend-group li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.arch-legend-zone::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color);
+}
+
+.arch-legend-line {
+  width: 40px;
+  height: 10px;
+  stroke: currentColor;
+}
+
+.arch-credits {
+  margin-top: 12px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+/* ---------- Panel de detalle ---------- */
+
+.arch-panel {
+  position: absolute;
+  z-index: 3;
+  top: 16px;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  width: var(--panel-width);
+  max-width: calc(100% - 32px);
+  border: 1px solid color-mix(in srgb, var(--zone) 35%, var(--glass-border));
+  border-radius: 20px;
+  background: var(--glass-solid);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  overflow: hidden;
+}
+
+/* Con el panel abierto, los controles de la derecha se corren para no quedar tapados */
+.arch-app.is-panel-open .arch-zoom,
+.arch-app.is-panel-open .arch-bottom {
+  right: calc(var(--panel-width) + 32px);
+}
+
+.arch-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 16px 14px 20px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.arch-panel-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--zone);
+  color: #0b0e13;
+  box-shadow: 0 0 22px color-mix(in srgb, var(--zone) 45%, transparent);
+}
+
+.arch-panel-heading {
+  flex: 1;
+  min-width: 0;
+}
+
+.arch-panel-zone {
+  color: var(--zone);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.arch-panel h2 {
+  color: var(--text-strong);
+  font-size: 1.45rem;
+  line-height: 1.2;
+}
+
+.arch-panel h2:focus {
+  outline: none;
+}
+
+.arch-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px 24px;
+  color: var(--text-soft);
+  font-size: 0.98rem;
+  line-height: 1.55;
+  overscroll-behavior: contain;
+}
+
+.arch-panel-lead {
+  color: var(--text-strong);
+  font-size: 1.05rem;
+}
+
+/* Secciones desplegables */
+.arch-panel-section {
+  margin-top: 14px;
+  border-top: 1px solid var(--glass-border);
+  padding-top: 12px;
+}
+
+.arch-panel-section summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text-strong);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  list-style: none;
+}
+
+.arch-panel-section summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Flecha que gira al desplegar */
+.arch-panel-section summary::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
+  transform: rotate(45deg);
+  transition: transform 0.2s;
+}
+
+.arch-panel-section[open] summary::after {
+  transform: rotate(225deg);
+}
+
+.arch-panel-section > :not(summary) {
+  margin-top: 8px;
+}
+
+.arch-panel-list {
+  padding-left: 18px;
+}
+
+.arch-panel-list li + li {
+  margin-top: 6px;
+}
+
+.arch-panel-list li::marker {
+  color: var(--zone);
+}
+
+.arch-panel-files a {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 0.9rem;
+  word-break: break-word;
+}
+
+.arch-panel-connections-title {
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.arch-panel-links {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+  list-style: none;
+}
+
+/* Cada conexión lleva al componente vecino */
+.arch-connection {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--glass-border);
+  border-left: 3px solid var(--zone);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-soft);
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.arch-connection:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.arch-connection strong {
+  color: var(--text-strong);
+}
+
+/* ---------- Tooltip ---------- */
+
+/* Fuera del lienzo: no cambia de tamaño con el zoom y siempre se lee bien */
+.arch-tooltip {
+  position: fixed;
+  z-index: 10;
+  max-width: 340px;
+  padding: 12px 15px;
+  border: 1px solid color-mix(in srgb, var(--color) 45%, transparent);
+  border-left: 4px solid var(--color);
+  border-radius: 12px;
+  background: rgba(10, 14, 22, 0.97);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5);
+  color: var(--text-soft);
+  font-size: 15px;
+  line-height: 1.45;
+  pointer-events: none;
+}
+
+.arch-tooltip strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--color);
+  font-size: 16px;
+}
+
+/* Aviso cuando la página se abre como archivo (file://) y el diagrama no puede dibujarse */
+.arch-file-warning {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 10px;
+  padding: 24px;
+  color: #e9edf4;
+  text-align: center;
+}
+
+.arch-file-warning p {
+  max-width: 60ch;
+  color: #a3acbd;
+}
+
+.arch-file-warning code {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  color: #4fcacc;
+}
+
+/* ---------- Celular ---------- */
+
+@media (max-width: 759px) {
+  .arch-header {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+    max-width: none;
+    padding: 12px 14px;
+  }
+
+  .arch-lead,
+  .arch-hint-long {
+    display: none;
+  }
+
+  .arch-hint-short {
+    display: inline;
+  }
+
+  .arch-eyebrow {
+    font-size: 0.7rem;
+  }
+
+  .arch-header h1 {
+    margin-top: 4px;
+    font-size: 1.25rem;
+  }
+
+  .arch-hint {
+    margin-top: 4px;
+    font-size: 0.8rem;
+  }
+
+  /* Zoom en fila, justo arriba de la barra de capas (su alto lo informa el JS en --bottom-h).
+     El porcentaje se oculta: en el celular se acerca con el pellizco */
+  .arch-zoom {
+    top: auto;
+    right: 10px;
+    bottom: calc(var(--bottom-h, 120px) + 18px);
+    flex-direction: row;
+    padding: 4px;
+  }
+
+  .arch-zoom output {
+    display: none;
+  }
+
+  .arch-zoom button {
+    width: 38px;
+    height: 38px;
+  }
+
+  .arch-bottom {
+    right: 10px;
+    bottom: 10px;
+    left: 10px;
+    max-width: none;
+    padding: 10px 12px;
+  }
+
+  .arch-layer-caption {
+    font-size: 0.85rem;
+  }
+
+  /* Las capas en una sola fila que se desliza con el dedo */
+  .arch-layers {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  .arch-layer {
+    flex: none;
+  }
+
+  /* El panel de detalle sube desde abajo como una hoja */
+  .arch-panel {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: auto;
+    max-width: none;
+    max-height: 62dvh;
+    border-radius: 20px 20px 0 0;
+  }
+
+  .arch-app.is-panel-open .arch-zoom,
+  .arch-app.is-panel-open .arch-bottom {
+    right: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arch-node,
+  .arch-node-item,
+  .arch-edge-group,
+  .arch-label,
+  .arch-zoom,
+  .arch-bottom,
+  .arch-panel-section summary::after {
+    transition: none;
+  }
+}

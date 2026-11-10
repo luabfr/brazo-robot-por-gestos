@@ -1221,6 +1221,130 @@ h1 {
   }
 }
 
+/* ================= Video del brazo (VDO.Ninja) ================= */
+
+/* Caja oscura con el iframe de VDO.Ninja o el texto de espera: mismo aspecto que el video de la cámara */
+.video-box {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--stage-bg);
+}
+
+.video-frame {
+  display: block;
+  place-self: stretch;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.video-placeholder {
+  padding: 16px;
+  color: var(--stage-text);
+  text-align: center;
+}
+
+/* Vista previa en el receptor: la caja ocupa el ancho del panel en 16:9 */
+.video-box-preview {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  margin-top: 12px;
+}
+
+/* Etiqueta de cada video del emisor, arriba a la izquierda ("Tu cámara", "Brazo robot · en vivo") */
+.stage-label {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(11, 14, 19, 0.55);
+  color: #e9edf4;
+  font-size: 0.75rem;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+/* Punto rojo de "en vivo" (convención de las transmisiones) */
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff4d4f;
+  box-shadow: 0 0 0 3px rgba(255, 77, 79, 0.3);
+}
+
+/* ================= Emisor: dos videos lado a lado ================= */
+
+.stream-area {
+  margin-top: 16px;
+}
+
+/* El video del brazo se muestra en 16:9 (VDO.Ninja agrega bandas si la cámara del profesor tiene otra proporción) */
+.stream-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 70vh;
+}
+
+/* Escritorio: cuatro zonas sin scroll. Arriba los controles de la cámara y la conexión MQTT;
+   en el medio, con todo el alto libre, tu cámara y el brazo en vivo; abajo los datos de control y el registro */
+@media (min-width: 1180px) and (min-height: 540px) {
+  /* Los videos nunca bajan de 260 px de alto. En ventanas bajas (sobre todo con el formulario de MQTT abierto)
+     la página hace un poco de scroll en lugar de encimar los videos con los paneles de abajo.
+     min-height en vez de height: con lugar de sobra la grilla ocupa exactamente la ventana, como antes */
+  .app-emisor {
+    height: auto;
+    min-height: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: auto auto minmax(260px, 1fr) auto;
+    grid-template-areas:
+      "header header"
+      "controls mqtt"
+      "camera stream"
+      "control log";
+  }
+
+  /* La separación la da el gap de la grilla. .app-emisor antepuesto: le gana a los márgenes de .panel y .control */
+  .app-emisor > *,
+  .app-emisor .toolbar {
+    margin-top: 0;
+  }
+
+  .app-emisor .app-header { grid-area: header; }
+  .camera-controls { grid-area: controls; }
+  .mqtt-panel { grid-area: mqtt; }
+  .camera-area { grid-area: camera; }
+  .stream-area { grid-area: stream; }
+  .app-emisor .control { grid-area: control; }
+  .app-emisor .log-panel { grid-area: log; }
+
+  /* Mismo criterio que .stage-area: el cuadro ocupa el alto libre sin deformarse (100cqw/100cqh = tamaño del área) */
+  .stream-area {
+    display: grid;
+    place-items: start center;
+    min-height: 160px;
+    container-type: size;
+  }
+
+  .stream-frame {
+    width: min(100cqw, calc(100cqh * 16 / 9));
+    max-height: none;
+  }
+
+  .app-emisor .log-list {
+    min-height: 60px;
+  }
+}
+
 /* ================= Portada (index.html) ================= */
 
 /* La portada no es una tarjeta única: es una columna de secciones con aire entre ellas

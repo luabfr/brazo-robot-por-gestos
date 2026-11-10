@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="css/app.css" />
 </head>
 <body class="theme-emisor">
-  <main class="app">
+  <main class="app app-emisor">
     <header class="app-header">
       <!-- Mismo ícono que la tarjeta del emisor en la portada -->
       <h1>
@@ -20,8 +20,10 @@
       <p class="tagline">Tu mano controla el robot del profesor · MediaPipe + MQTT · <a href="index.html">volver al inicio</a></p>
     </header>
 
-    <!-- Columna izquierda: todo lo relacionado con la cámara y la detección -->
-    <div class="column column-camera">
+    <!-- Orden de lectura: fila 1 = controles de la cámara | conexión MQTT; fila 2 = tu cámara | el brazo en vivo;
+         fila 3 = datos de control | registro. En celulares todo va en una columna, en este mismo orden -->
+
+    <section class="camera-controls" aria-label="Controles de la cámara">
       <div class="toolbar">
         <button type="button" class="btn btn-primary" id="cameraButton">Iniciar cámara</button>
         <!-- Apagado por defecto: con 21 números por mano el dibujo se vuelve difícil de leer -->
@@ -43,133 +45,143 @@
       </div>
 
       <p class="status" id="status" role="status" aria-live="polite"></p>
+    </section>
 
-      <!-- El video muestra la cámara; el canvas encima dibuja los nodos detectados.
-           stage-area es el espacio disponible; el escenario se ajusta adentro sin deformar la imagen.
-           Sobre el video van dos capas de datos (solo con la cámara encendida): los indicadores técnicos,
-           chicos en una esquina, y los datos de la mano en una franja abajo -->
-      <div class="stage-area stage-area-top">
-        <!-- stage-frame mide lo mismo que el video: la franja de datos se apoya sobre su borde inferior.
-             En celulares la franja pasa a ir debajo del video para no taparlo -->
-        <div class="stage-frame">
-          <section class="stage is-mirrored" id="stage" aria-label="Vista de la cámara con los nodos de las manos">
-            <video id="video" autoplay muted playsinline></video>
-            <canvas id="overlay"></canvas>
-            <p class="stage-placeholder" id="stagePlaceholder">Cámara apagada</p>
+    <!-- Conexión con el broker MQTT. La contraseña nunca se guarda en esta página:
+         si el usuario quiere, la recuerda el gestor de contraseñas del navegador -->
+    <section class="panel mqtt-panel" aria-label="Conexión remota">
+      <div class="panel-header">
+        <h2 class="section-label">Conexión remota · MQTT</h2>
+        <p class="led-row" id="remoteLedRow">
+          <span class="led-indicator" aria-hidden="true"></span>
+          <span class="led-indicator" aria-hidden="true"></span>
+          <span class="led-indicator" aria-hidden="true"></span>
+          <span id="remoteLedStatus" aria-live="polite">LEDs sin confirmar</span>
+        </p>
+      </div>
 
-            <p class="stage-meta">
-              Manos <b id="handsValue">0</b> · FPS <b id="fpsValue">–</b> · <b id="delegateValue">–</b>
-            </p>
-          </section>
-
-          <!-- Sin aria-live a propósito: se actualiza varias veces por segundo y saturaría al lector de pantalla -->
-          <section class="hand-data stage-hud" aria-label="Coordenadas de la punta del índice">
-            <h2 class="hand-data-title">Punta del índice (nodo 8) · x, y de 0 a 1 · z relativa a la muñeca</h2>
-            <ul class="hand-data-list" id="handDataList"></ul>
-          </section>
+      <form class="connect-form" id="connectForm" autocomplete="on">
+        <div class="field">
+          <label for="roomInput">Sala</label>
+          <input class="input" id="roomInput" name="room" maxlength="24" autocapitalize="off" spellcheck="false" required />
         </div>
+        <div class="field">
+          <label for="aliasInput">Tu alias</label>
+          <input class="input" id="aliasInput" name="alias" maxlength="24" placeholder="p. ej. ana" autocapitalize="off" spellcheck="false" required />
+        </div>
+        <div class="field">
+          <label for="usernameInput">Usuario</label>
+          <input class="input" id="usernameInput" name="username" autocomplete="username" autocapitalize="off" spellcheck="false" />
+        </div>
+        <div class="field">
+          <label for="passwordInput">Contraseña</label>
+          <input class="input" id="passwordInput" name="password" type="password" autocomplete="current-password" />
+        </div>
+        <details class="field field-wide field-advanced">
+          <summary>Servidor (avanzado)</summary>
+          <label class="visually-hidden" for="brokerInput">Dirección del broker</label>
+          <input class="input" id="brokerInput" name="broker" autocapitalize="off" spellcheck="false" />
+        </details>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary btn-small" id="mqttConnectButton">Conectar</button>
+          <p class="connection-status">
+            <span class="status-dot" id="mqttStatusDot" aria-hidden="true"></span>
+            <span id="mqttStatus" aria-live="polite">Desconectado</span>
+          </p>
+        </div>
+      </form>
+
+      <!-- Solo se muestra con la conexión activa: sin conexión repetiría lo que ya dice el estado -->
+      <p class="role-row" id="roleRow" hidden>
+        <span class="badge" id="controlBadge">Sin conexión</span>
+        <span id="receiverStatus">Profesor: sin datos</span>
+        <span id="sentRateValue"></span>
+      </p>
+      <!-- Estado del brazo del profesor: solo aparece si su Arduino tiene el sketch del brazo -->
+      <p class="device-status" id="remoteArmStatus" hidden></p>
+    </section>
+
+    <!-- Tu cámara. El video muestra la webcam; el canvas encima dibuja los nodos detectados.
+         stage-area es el espacio disponible; el escenario se ajusta adentro sin deformar la imagen.
+         Sobre el video van dos capas de datos (solo con la cámara encendida): los indicadores técnicos,
+         chicos en una esquina, y los datos de la mano en una franja abajo -->
+    <div class="stage-area stage-area-top camera-area">
+      <!-- stage-frame mide lo mismo que el video: la franja de datos se apoya sobre su borde inferior.
+           En celulares la franja pasa a ir debajo del video para no taparlo -->
+      <div class="stage-frame">
+        <section class="stage is-mirrored" id="stage" aria-label="Vista de la cámara con los nodos de las manos">
+          <video id="video" autoplay muted playsinline></video>
+          <canvas id="overlay"></canvas>
+          <p class="stage-placeholder" id="stagePlaceholder">Cámara apagada</p>
+
+          <p class="stage-label">Tu cámara</p>
+          <p class="stage-meta">
+            Manos <b id="handsValue">0</b> · FPS <b id="fpsValue">–</b> · <b id="delegateValue">–</b>
+          </p>
+        </section>
+
+        <!-- Sin aria-live a propósito: se actualiza varias veces por segundo y saturaría al lector de pantalla -->
+        <section class="hand-data stage-hud" aria-label="Coordenadas de la punta del índice">
+          <h2 class="hand-data-title">Punta del índice (nodo 8) · x, y de 0 a 1 · z relativa a la muñeca</h2>
+          <ul class="hand-data-list" id="handDataList"></ul>
+        </section>
       </div>
     </div>
 
-    <!-- Columna derecha: lo que se envía, la conexión con el broker y el estado del robot -->
-    <div class="column column-remote">
-      <!-- Datos de control: lo que se envía. Sin aria-live: cambia varias veces por segundo -->
-      <section class="control" aria-label="Datos de control">
-        <h2 class="section-label">Datos de control · lo que se envía al robot</h2>
-        <div class="stats">
-          <div class="stat">
-            <span class="section-label">X</span>
-            <span class="stat-value" id="controlXValue">–</span>
-          </div>
-          <div class="stat">
-            <span class="section-label">Y</span>
-            <span class="stat-value" id="controlYValue">–</span>
-          </div>
-          <div class="stat">
-            <span class="section-label">Dedos</span>
-            <span class="stat-value" id="fingersValue">–</span>
-          </div>
-          <div class="stat">
-            <span class="section-label">Gesto</span>
-            <span class="stat-value stat-value-text" id="gestureValue">Sin mano</span>
-          </div>
+    <!-- El brazo en vivo: la cámara de la PC del profesor, por VDO.Ninja. El ID y la clave llegan por MQTT -->
+    <section class="stream-area" aria-label="Brazo robot en vivo">
+      <div class="stream-frame">
+        <div class="video-box" id="streamBox">
+          <p class="video-placeholder" id="streamPlaceholder">Conéctate al broker para ver el brazo.</p>
         </div>
-        <p class="message">
-          <span class="section-label">Mensaje</span>
-          <code class="message-value" id="messageValue">SIN_MANO</code>
-          <span class="message-rate" id="messageRateValue">– msg/s</span>
+        <p class="stage-label" id="streamLabel">
+          <span class="live-dot" id="liveDot" aria-hidden="true" hidden></span><span id="streamLabelText">Brazo robot</span>
         </p>
-        <p class="control-hint" id="controlHint"></p>
-      </section>
+      </div>
+    </section>
 
-      <!-- Conexión con el broker MQTT. La contraseña nunca se guarda en esta página:
-           si el usuario quiere, la recuerda el gestor de contraseñas del navegador -->
-      <section class="panel" aria-label="Conexión remota">
-        <div class="panel-header">
-          <h2 class="section-label">Conexión remota · MQTT</h2>
-          <p class="led-row" id="remoteLedRow">
-            <span class="led-indicator" aria-hidden="true"></span>
-            <span class="led-indicator" aria-hidden="true"></span>
-            <span class="led-indicator" aria-hidden="true"></span>
-            <span id="remoteLedStatus" aria-live="polite">LEDs sin confirmar</span>
-          </p>
+    <!-- Datos de control: lo que se envía. Sin aria-live: cambia varias veces por segundo -->
+    <section class="control" aria-label="Datos de control">
+      <h2 class="section-label">Datos de control · lo que se envía al robot</h2>
+      <div class="stats">
+        <div class="stat">
+          <span class="section-label">X</span>
+          <span class="stat-value" id="controlXValue">–</span>
         </div>
-
-        <form class="connect-form" id="connectForm" autocomplete="on">
-          <div class="field">
-            <label for="roomInput">Sala</label>
-            <input class="input" id="roomInput" name="room" maxlength="24" autocapitalize="off" spellcheck="false" required />
-          </div>
-          <div class="field">
-            <label for="aliasInput">Tu alias</label>
-            <input class="input" id="aliasInput" name="alias" maxlength="24" placeholder="p. ej. ana" autocapitalize="off" spellcheck="false" required />
-          </div>
-          <div class="field">
-            <label for="usernameInput">Usuario</label>
-            <input class="input" id="usernameInput" name="username" autocomplete="username" autocapitalize="off" spellcheck="false" />
-          </div>
-          <div class="field">
-            <label for="passwordInput">Contraseña</label>
-            <input class="input" id="passwordInput" name="password" type="password" autocomplete="current-password" />
-          </div>
-          <details class="field field-wide field-advanced">
-            <summary>Servidor (avanzado)</summary>
-            <label class="visually-hidden" for="brokerInput">Dirección del broker</label>
-            <input class="input" id="brokerInput" name="broker" autocapitalize="off" spellcheck="false" />
-          </details>
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary btn-small" id="mqttConnectButton">Conectar</button>
-            <p class="connection-status">
-              <span class="status-dot" id="mqttStatusDot" aria-hidden="true"></span>
-              <span id="mqttStatus" aria-live="polite">Desconectado</span>
-            </p>
-          </div>
-        </form>
-
-        <!-- Solo se muestra con la conexión activa: sin conexión repetiría lo que ya dice el estado -->
-        <p class="role-row" id="roleRow" hidden>
-          <span class="badge" id="controlBadge">Sin conexión</span>
-          <span id="receiverStatus">Profesor: sin datos</span>
-          <span id="sentRateValue"></span>
-        </p>
-        <!-- Estado del brazo del profesor: solo aparece si su Arduino tiene el sketch del brazo -->
-        <p class="device-status" id="remoteArmStatus" hidden></p>
-      </section>
-
-      <section class="panel log-panel" aria-label="Registro de eventos">
-        <div class="logger-header">
-          <h2 class="section-label">Registro</h2>
-          <div class="logger-actions">
-            <label class="toggle toggle-small">
-              <input type="checkbox" id="logTxCheckbox" />
-              Mostrar cada envío (TX)
-            </label>
-            <button type="button" class="btn btn-secondary btn-small" id="clearLogButton">Limpiar</button>
-          </div>
+        <div class="stat">
+          <span class="section-label">Y</span>
+          <span class="stat-value" id="controlYValue">–</span>
         </div>
-        <ol class="log-list" id="logList" role="log"></ol>
-      </section>
-    </div>
+        <div class="stat">
+          <span class="section-label">Dedos</span>
+          <span class="stat-value" id="fingersValue">–</span>
+        </div>
+        <div class="stat">
+          <span class="section-label">Gesto</span>
+          <span class="stat-value stat-value-text" id="gestureValue">Sin mano</span>
+        </div>
+      </div>
+      <p class="message">
+        <span class="section-label">Mensaje</span>
+        <code class="message-value" id="messageValue">SIN_MANO</code>
+        <span class="message-rate" id="messageRateValue">– msg/s</span>
+      </p>
+      <p class="control-hint" id="controlHint"></p>
+    </section>
+
+    <section class="panel log-panel" aria-label="Registro de eventos">
+      <div class="logger-header">
+        <h2 class="section-label">Registro</h2>
+        <div class="logger-actions">
+          <label class="toggle toggle-small">
+            <input type="checkbox" id="logTxCheckbox" />
+            Mostrar cada envío (TX)
+          </label>
+          <button type="button" class="btn btn-secondary btn-small" id="clearLogButton">Limpiar</button>
+        </div>
+      </div>
+      <ol class="log-list" id="logList" role="log"></ol>
+    </section>
   </main>
 
   <script type="module">
@@ -179,6 +191,7 @@
     import { CONFIG } from "./js/config.js";
     import { NAME_PATTERN, normalizeName, buildTopics, checkBrokerUrl, createMqttLink } from "./js/mqtt-link.js";
     import { NO_HAND_MESSAGE, describeArmStatus } from "./js/protocol.js";
+    import { VIEW_FRAME_ALLOW, parseVideoMessage, buildViewUrl, createVideoFrame } from "./js/video-link.js";
 
     // Solo se recuerdan datos que no son secretos; la contraseña la guarda el navegador si el usuario lo acepta
     var FORM_STORAGE_KEY = "brazo-robot.emisor.form";
@@ -219,6 +232,10 @@
     var logTxCheckbox = document.getElementById("logTxCheckbox");
     var clearLogButton = document.getElementById("clearLogButton");
     var logList = document.getElementById("logList");
+    var streamBox = document.getElementById("streamBox");
+    var streamPlaceholder = document.getElementById("streamPlaceholder");
+    var streamLabelText = document.getElementById("streamLabelText");
+    var liveDot = document.getElementById("liveDot");
 
     var log = createLogger(logList, "[emisor]");
     var tracker = initHandTracker({ sendIntervalMs: CONFIG.remoteSendIntervalMs });
@@ -230,6 +247,8 @@
     var receiverOnline = null; // null = todavía no se sabe
     var sentSinceRate = 0;
     var lastPublishTime = 0;   // performance.now() de la última publicación de la mano
+    var videoSession = null;   // { id, password } del video del brazo que publicó el profesor (null = apagado)
+    var shownVideoId = null;   // ID del video que muestra el iframe: solo se recarga si cambia
 
     var link = createMqttLink({
       log: log,
@@ -296,6 +315,32 @@
       } else {
         receiverStatus.textContent = receiverOnline ? "Profesor conectado" : "Profesor desconectado";
       }
+      renderVideo();
+    }
+
+    // El video del brazo se muestra solo con el broker conectado, el profesor en línea y su cámara encendida.
+    // Si el profesor se cae, el broker publica su "offline" (Last Will) y el video se oculta aunque quede un ID retenido
+    function renderVideo() {
+      var isConnected = connectionState === "connected";
+      var canShow = isConnected && receiverOnline === true && videoSession !== null;
+
+      if (canShow && shownVideoId !== videoSession.id) {
+        var url = buildViewUrl(videoSession, { baseUrl: CONFIG.videoBaseUrl });
+        streamBox.replaceChildren(createVideoFrame(url, VIEW_FRAME_ALLOW, "Brazo robot en vivo (VDO.Ninja)"));
+        shownVideoId = videoSession.id;
+      } else if (!canShow && shownVideoId !== null) {
+        streamBox.replaceChildren(streamPlaceholder); // Quitar el iframe corta la conexión de video
+        shownVideoId = null;
+      }
+
+      liveDot.hidden = !canShow;
+      streamLabelText.textContent = canShow ? "Brazo robot · en vivo" : "Brazo robot";
+      if (!canShow) {
+        streamPlaceholder.textContent = !isConnected ? "Conéctate al broker para ver el brazo."
+          : receiverOnline === false ? "El profesor no está conectado."
+          : receiverOnline === null ? "Esperando al profesor…"
+          : "El profesor todavía no encendió la cámara del brazo.";
+      }
     }
 
     function handleStateChange(state, detail) {
@@ -317,6 +362,7 @@
         session = null;
         hasControl = false;
         receiverOnline = null;
+        videoSession = null;
         setLeds(null);
         setArmStatus(null);
       }
@@ -340,6 +386,8 @@
       if (results.every(Boolean)) {
         log("info", "Esperando que el profesor te dé el control…");
       }
+      // Aparte: si falta la regla de EMQX para el video, el control del robot funciona igual
+      await link.subscribe(topics.video, 1);
     }
 
     function handleMessage(topic, text) {
@@ -370,6 +418,12 @@
       } else if (topic === topics.receiver) {
         receiverOnline = value === "online";
         renderRole();
+      } else if (topic === topics.video) {
+        videoSession = parseVideoMessage(value);
+        if (value && !videoSession) {
+          log("warn", "Se ignoró un dato de video con formato inválido.");
+        }
+        renderVideo();
       }
     }
 

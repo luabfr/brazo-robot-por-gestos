@@ -7,6 +7,7 @@ Proyecto del curso de robótica con Arduino: control remoto de un robot con gest
 - **MediaPipe** detecta los 21 puntos de la mano en el navegador y los convierte en posición (X, Y), cantidad de dedos y gesto.
 - **MQTT** lleva esos datos por internet, de un país a otro, a través de un broker en la nube (EMQX).
 - **Web Serial** envía los datos desde el navegador del profesor al Arduino por USB.
+- **VDO.Ninja** transmite en vivo la cámara que filma el brazo, para que el alumno vea el resultado de sus gestos.
 
 El Arduino puede tener uno de dos sketches, y las páginas se adaptan solas al que esté cargado:
 
@@ -18,8 +19,8 @@ El Arduino puede tener uno de dos sketches, y las páginas se adaptan solas al q
 | Página | Para quién | Qué hace |
 |---|---|---|
 | [`index.html`](index.html) | Todos | Portada: elegir el rol. |
-| [`emisor.html`](emisor.html) | Alumnos | Detecta la mano con la webcam y publica los datos cuando el profesor le da el control. |
-| [`receptor.html`](receptor.html) | Profesor | Lista a los alumnos conectados, elige quién controla el robot y reenvía sus datos al Arduino. |
+| [`emisor.html`](emisor.html) | Alumnos | Detecta la mano con la webcam, publica los datos cuando el profesor le da el control y muestra el brazo en vivo. |
+| [`receptor.html`](receptor.html) | Profesor | Lista a los alumnos conectados, elige quién controla el robot, reenvía sus datos al Arduino y transmite la cámara del brazo. |
 | [`hand-tracking.html`](hand-tracking.html) | Pruebas | Versión local: cámara y Arduino en la misma PC, sin internet de por medio. |
 
 El receptor y la versión local necesitan **Chrome o Edge de escritorio** (Web Serial no está en otros navegadores). Todas las páginas tienen que abrirse desde `https://` o `http://localhost`, porque la cámara y Web Serial solo funcionan en orígenes seguros.
@@ -61,6 +62,20 @@ Gestos: `ABIERTA`, `CERRADA`, `PINZA`, `INDICE`, `V`, `OTRO`. Se reconocen midie
 | `robotica/<sala>/leds` | Receptor | `OK: LEDS n` confirmado por el Arduino, retenido |
 | `robotica/<sala>/brazo` | Receptor | `OK: BRAZO <estado> <ángulo 1> <ángulo 2>` informado por el brazo, retenido |
 | `robotica/<sala>/receptor` | Receptor (y el broker, con el *Last Will*) | `online` / `offline`, retenido |
+| `robotica/<sala>/video` | Receptor | `VIDEO <id> <clave>` del video del brazo (vacío = cámara apagada), retenido |
+
+### Video del brazo
+
+El profesor enciende la cámara del brazo en el receptor y cada alumno la ve a la derecha de su propia cámara. El video va por [VDO.Ninja](https://vdo.ninja), un servicio gratuito y de código abierto que transmite video entre navegadores con WebRTC, sin servidor propio.
+
+1. Al pulsar **Encender cámara**, el receptor genera un ID y una clave al azar y abre la cámara en un iframe de VDO.Ninja (`?push=<id>`).
+2. Publica `VIDEO <id> <clave>` retenido en `robotica/<sala>/video`. Así el link solo lo conocen los usuarios del broker y cambia en cada encendido.
+3. El emisor valida ese mensaje y arma el visor (`?view=<id>`). Si el profesor apaga la cámara o se desconecta, el video desaparece.
+
+- **Privacidad.** Solo se transmite la cámara del brazo, sin audio (`&audiodevice=0`). El iframe del emisor no tiene permiso de cámara ni de micrófono: no puede usar la webcam del alumno, que sigue sin salir de su PC.
+- **Ancho de banda.** Es P2P: la PC del profesor sube un stream por cada alumno que mira. El tope por alumno está en `videoMaxBitrateKbps` ([`js/config.js`](js/config.js)); con 5 alumnos a 1000 kbps son unos 5 Mbps de subida.
+- **Redes difíciles.** Si dos PCs no pueden conectarse directo, VDO.Ninja usa sus propios servidores de relevo (TURN).
+- **Cámara.** Si la PC del profesor tiene más de una, **Buscar cámaras** las lista por nombre (pide permiso de cámara una vez).
 
 ### Seguridad y fallas
 
@@ -90,6 +105,7 @@ Gestos: `ABIERTA`, `CERRADA`, `PINZA`, `INDICE`, `V`, `OTRO`. Se reconocen midie
    | `emisor` | Suscribirse | `robotica/+/leds` | Permitir |
    | `emisor` | Suscribirse | `robotica/+/receptor` | Permitir |
    | `emisor` | Suscribirse | `robotica/+/brazo` | Permitir |
+   | `emisor` | Suscribirse | `robotica/+/video` | Permitir |
    | `emisor` | Publicar y suscribirse | `#` | Denegar |
    | `receptor` | Suscribirse | `robotica/+/alumnos/+/estado` | Permitir |
    | `receptor` | Suscribirse | `robotica/+/alumnos/+/mano` | Permitir |
@@ -97,6 +113,7 @@ Gestos: `ABIERTA`, `CERRADA`, `PINZA`, `INDICE`, `V`, `OTRO`. Se reconocen midie
    | `receptor` | Publicar | `robotica/+/leds` | Permitir |
    | `receptor` | Publicar | `robotica/+/receptor` | Permitir |
    | `receptor` | Publicar | `robotica/+/brazo` | Permitir |
+   | `receptor` | Publicar | `robotica/+/video` | Permitir |
    | `receptor` | Publicar y suscribirse | `#` | Denegar |
 
 4. En [`js/config.js`](js/config.js), reemplazar `<EMQX_HOST>` por la dirección (*Address*) del deployment. Queda así: `wss://<EMQX_HOST>:8084/mqtt`.
@@ -157,6 +174,7 @@ css/app.css            estilos compartidos (diseño de dos columnas sin scroll e
 js/hand-tracker.js     cámara, MediaPipe, gestos y datos de control
 js/serial-link.js      conexión con el Arduino por Web Serial
 js/mqtt-link.js        conexión con el broker (MQTT.js sobre wss)
+js/video-link.js       video en vivo del brazo con VDO.Ninja (links, ID y clave al azar)
 js/protocol.js         formato y validación de los mensajes
 js/logger.js           registro de eventos en pantalla
 js/config.js           dirección del broker y parámetros (sin credenciales)
@@ -167,10 +185,9 @@ arduino/led_13/        sketch de la primera clase: LED del pin 13 con ENCENDER /
 
 ## Tecnologías
 
-[MediaPipe Hand Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker) · [MQTT.js](https://github.com/mqttjs/MQTT.js) · [EMQX Cloud](https://www.emqx.com/en/cloud) · [Web Serial API](https://developer.mozilla.org/docs/Web/API/Web_Serial_API) · Arduino. Sin frameworks ni compilación: HTML, CSS y JavaScript.
+[MediaPipe Hand Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker) · [MQTT.js](https://github.com/mqttjs/MQTT.js) · [EMQX Cloud](https://www.emqx.com/en/cloud) · [Web Serial API](https://developer.mozilla.org/docs/Web/API/Web_Serial_API) · [VDO.Ninja](https://vdo.ninja) · Arduino. Sin frameworks ni compilación: HTML, CSS y JavaScript.
 
 ## Próximos pasos
 
 - Control proporcional del brazo: X/Y → base y hombro, pinza → garra.
-- Video en vivo del robot para que el alumno vea el resultado de sus gestos.
 - Medir la demora entre países con un ping de ida y vuelta.

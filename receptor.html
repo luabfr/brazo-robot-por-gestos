@@ -88,8 +88,31 @@
       </section>
     </div>
 
-    <!-- Columna derecha: todo lo relacionado con el Arduino (conexión y registro) -->
+    <!-- Columna derecha: la cámara del brazo y todo lo relacionado con el Arduino (conexión y registro) -->
     <div class="column column-arduino">
+      <!-- Video en vivo del brazo para los alumnos (VDO.Ninja). El ID y la clave se reparten por MQTT -->
+      <section class="panel video-panel" aria-label="Cámara del brazo">
+        <div class="panel-header">
+          <h2 class="section-label">Cámara del brazo · video para los alumnos</h2>
+          <p class="connection-status">
+            <span class="status-dot" id="videoStatusDot" aria-hidden="true"></span>
+            <span id="videoStatus" aria-live="polite">Apagada</span>
+          </p>
+        </div>
+        <div class="port-row">
+          <label class="visually-hidden" for="cameraSelect">Cámara</label>
+          <select class="select" id="cameraSelect">
+            <option value="">Predeterminada</option>
+          </select>
+          <button type="button" class="btn btn-secondary btn-small" id="findCamerasButton"
+                  title="Pide permiso de cámara para poder listar las cámaras por nombre">Buscar cámaras</button>
+          <button type="button" class="btn btn-primary btn-small" id="videoButton">Encender cámara</button>
+        </div>
+        <div class="video-box video-box-preview" id="pushBox">
+          <p class="video-placeholder" id="pushPlaceholder">Cámara apagada. Al encenderla, los alumnos conectados ven el brazo en su página.</p>
+        </div>
+      </section>
+
       <!-- Conexión con el Arduino por Web Serial (mismo funcionamiento que la versión local) -->
       <section class="serial" aria-label="Conexión con el Arduino">
         <div class="serial-header">
@@ -138,9 +161,14 @@
     import { CONFIG } from "./js/config.js";
     import { NAME_PATTERN, normalizeName, buildTopics, checkBrokerUrl, createMqttLink } from "./js/mqtt-link.js";
     import { NO_HAND_MESSAGE, GESTURE_LABELS, formatMessage, parseMessage } from "./js/protocol.js";
+    import {
+      PUSH_FRAME_ALLOW, createVideoSession, formatVideoMessage, buildPushUrl, createVideoFrame,
+      listCameraLabels, describeCameraError
+    } from "./js/video-link.js";
 
     // Solo se recuerdan datos que no son secretos; la contraseña la guarda el navegador si el usuario lo acepta
     var FORM_STORAGE_KEY = "brazo-robot.receptor.form";
+    var CAMERA_STORAGE_KEY = "brazo-robot.receptor.camera"; // Nombre de la última cámara elegida para el brazo
     var RATE_INTERVAL_MS = 1000;
     var MAX_LOGGED_TEXT = 60; // Un mensaje inválido se muestra recortado: puede ser cualquier cosa llegada por internet
     // Latido hacia el Arduino: con la mano quieta se repite el estado (el sketch del brazo frena a los 1,5 s sin mensajes)
@@ -176,8 +204,16 @@
     var studentList = document.getElementById("studentList");
     var clearLogButton = document.getElementById("clearLogButton");
     var logList = document.getElementById("logList");
+    var videoStatusDot = document.getElementById("videoStatusDot");
+    var videoStatus = document.getElementById("videoStatus");
+    var cameraSelect = document.getElementById("cameraSelect");
+    var findCamerasButton = document.getElementById("findCamerasButton");
+    var videoButton = document.getElementById("videoButton");
+    var pushBox = document.getElementById("pushBox");
+    var pushPlaceholder = document.getElementById("pushPlaceholder");
 
     var log = createLogger(logList, "[receptor]");
+    var videoSession = null; // { id, password } mientras la cámara del brazo está encendida
 
     var session = null;                   // { room, topics } desde que se pide la conexión hasta que se cierra
     var connectionState = "disconnected";
@@ -341,6 +377,7 @@
       }
       renderController();
       renderStudents();
+      renderVideo();
     }
 
     // ================= Robot =================
@@ -433,6 +470,102 @@
       }
     }
 
+    // ================= Cámara del brazo (video para los alumnos) =================
+
+    function readStoredCamera() {
+      try {
+        return localStorage.getItem(CAMERA_STORAGE_KEY) || "";
+      } catch (error) {
+        return ""; // Almacenamiento bloqueado: se usa la cámara predeterminada
+      }
+    }
+
+    function saveCamera(label) {
+      try {
+        localStorage.setItem(CAMERA_STORAGE_KEY, label);
+      } catch (error) {
+        // Sin almacenamiento solo no se recuerda la cámara elegida
+      }
+    }
+
+    // Arma la lista de cámaras conservando la elegida (también si en este momento no está conectada)
+    function fillCameraSelect(labels, selected) {
+      cameraSelect.textContent = "";
+      var options = [""].concat(labels);
+      if (selected && labels.indexOf(selected) === -1) {
+        options.push(selected);
+      }
+      options.forEach(function (label) {
+        var option = document.createElement("option");
+        option.value = label;
+        option.textContent = label || "Predeterminada"; // textContent: el nombre lo informa el sistema
+        cameraSelect.appendChild(option);
+      });
+      cameraSelect.value = selected;
+    }
+
+    async function findCameras() {
+      findCamerasButton.disabled = true;
+      try {
+        var labels = await listCameraLabels();
+        fillCameraSelect(labels, cameraSelect.value);
+        log("info", labels.length === 1 ? "Se encontró 1 cámara." : "Se encontraron " + labels.length + " cámaras.");
+      } catch (error) {
+        log("error", describeCameraError(error));
+      } finally {
+        findCamerasButton.disabled = false;
+      }
+    }
+
+    function renderVideo() {
+      var isOn = videoSession !== null;
+      var isShared = isOn && connectionState === "connected";
+      videoButton.textContent = isOn ? "Apagar cámara" : "Encender cámara";
+      cameraSelect.disabled = isOn;
+      findCamerasButton.disabled = isOn;
+      videoStatusDot.classList.toggle("is-connected", isShared);
+      videoStatusDot.classList.toggle("is-busy", isOn && !isShared);
+      videoStatus.textContent = !isOn ? "Apagada"
+        : isShared ? "Encendida · los alumnos la ven"
+        : "Encendida · los alumnos la verán al conectarte al broker";
+    }
+
+    // Publica el ID y la clave del video, o "" si la cámara está apagada (borra el valor retenido)
+    function publishVideo() {
+      if (session && link.isConnected()) {
+        link.publish(session.topics.video, formatVideoMessage(videoSession), { qos: 1, retain: true });
+      }
+    }
+
+    function startVideo() {
+      if (videoSession) {
+        return;
+      }
+      videoSession = createVideoSession(); // ID y clave nuevos: un link de una clase anterior ya no sirve
+      var url = buildPushUrl(videoSession, {
+        baseUrl: CONFIG.videoBaseUrl,
+        maxBitrateKbps: CONFIG.videoMaxBitrateKbps,
+        deviceLabel: cameraSelect.value
+      });
+      pushBox.replaceChildren(createVideoFrame(url, PUSH_FRAME_ALLOW, "Vista previa de la cámara del brazo (VDO.Ninja)"));
+      saveCamera(cameraSelect.value);
+      publishVideo();
+      renderVideo();
+      log("success", "Cámara del brazo encendida" + (cameraSelect.value ? " («" + cameraSelect.value + "»)" : "") + ".");
+    }
+
+    // Al quitar el iframe, VDO.Ninja libera la cámara y corta el video de todos los alumnos
+    function stopVideo() {
+      if (!videoSession) {
+        return;
+      }
+      videoSession = null;
+      pushBox.replaceChildren(pushPlaceholder);
+      publishVideo();
+      renderVideo();
+      log("info", "Cámara del brazo apagada.");
+    }
+
     // ================= MQTT =================
 
     // Se llama en cada conexión, también al reconectar
@@ -449,8 +582,11 @@
       await link.publish(topics.control, controller || "", { qos: 1, retain: true });
 
       publishDeviceState();
+      // Con la cámara encendida se reanuncia el video; apagada, se borra un valor viejo que pudo quedar retenido
+      publishVideo();
       renderController();
       renderStudents();
+      renderVideo();
     }
 
     function handleMessage(topic, text) {
@@ -545,6 +681,7 @@
       var current = session;
       await link.disconnect(async function () {
         await link.publish(current.topics.control, "", { qos: 1, retain: true });
+        await link.publish(current.topics.video, "", { qos: 1, retain: true });
         await link.publish(current.topics.receiver, "offline", { qos: 1, retain: true });
       });
       log("info", "Desconectado del broker.");
@@ -570,9 +707,20 @@
       arduino.send(NO_HAND_MESSAGE);
       if (session && link.isConnected()) {
         link.publish(session.topics.control, "", { qos: 1, retain: true });
+        link.publish(session.topics.video, "", { qos: 1, retain: true });
         link.publish(session.topics.receiver, "offline", { qos: 1, retain: true });
       }
     });
+
+    videoButton.addEventListener("click", function () {
+      if (videoSession) {
+        stopVideo();
+      } else {
+        startVideo();
+      }
+    });
+
+    findCamerasButton.addEventListener("click", findCameras);
 
     clearLogButton.addEventListener("click", function () {
       logList.textContent = "";
@@ -597,6 +745,8 @@
     renderReceived({ hasHand: false }, NO_HAND_MESSAGE);
     renderController();
     renderStudents();
+    fillCameraSelect([], readStoredCamera());
+    renderVideo();
   </script>
 </body>
 </html>

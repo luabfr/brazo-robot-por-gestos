@@ -39,7 +39,8 @@ export function buildTopics(root, room) {
     control: base + "/control",
     leds: base + "/leds",
     arm: base + "/brazo",
-    receiver: base + "/receptor"
+    receiver: base + "/receptor",
+    video: base + "/video"
   };
 }
 

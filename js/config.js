@@ -9,5 +9,11 @@ export var CONFIG = {
   topicRoot: "robotica",     // Primer nivel de todos los topics; las reglas de permisos de EMQX usan este nombre
   defaultRoom: "clase",      // Sala que propone el formulario; cada curso puede usar la suya
   remoteSendIntervalMs: 200, // EMQX Serverless permite 10 publicaciones/s por cliente: 5 por segundo deja margen
-  keepaliveSeconds: 10       // Si una PC se cae, el broker lo nota en unos 15 s (1,5 × keepalive) y publica su "offline"
+  keepaliveSeconds: 10,      // Si una PC se cae, el broker lo nota en unos 15 s (1,5 × keepalive) y publica su "offline"
+
+  // Video en vivo del brazo con VDO.Ninja (WebRTC entre navegadores, sin servidor propio).
+  // Es P2P: la PC del profesor sube un stream por cada alumno que mira. Con 5 alumnos a 1000 kbps
+  // son unos 5 Mbps de subida; si la conexión no alcanza, bajar este tope
+  videoBaseUrl: "https://vdo.ninja/",
+  videoMaxBitrateKbps: 1000
 };

@@ -40,11 +40,16 @@ var HAND_PARTS = [
 ];
 var FINGERTIPS = [4, 8, 12, 16, 20];
 var INDEX_FINGERTIP = 8;
-var OUTLINE_COLOR = "rgba(0, 0, 0, 0.6)"; // Contorno oscuro: el dibujo se ve sobre fondos claros y oscuros
+// Dibujo sutil: líneas finas y algo transparentes para que la mano se siga viendo debajo.
+// El contorno oscuro es suave, pero alcanza para que el dibujo se vea sobre fondos claros
+var SKELETON_ALPHA = 0.8;
+var OUTLINE_COLOR = "rgba(0, 0, 0, 0.35)";
 var LABEL_COLOR = "#ffffff";
-var CONTROL_AREA_COLOR = "rgba(255, 255, 255, 0.35)";
+var LABEL_OUTLINE_COLOR = "rgba(0, 0, 0, 0.55)";
+var PILL_COLOR = "rgba(11, 14, 19, 0.6)"; // Fondo translúcido de las etiquetas (nombre de la mano y X/Y)
+var CONTROL_AREA_COLOR = "rgba(255, 255, 255, 0.22)";
 var CONTROL_MARKER_COLOR = "#ffffff";
-var CONTROL_MARKER_FILL = "rgba(255, 194, 51, 0.6)"; // Relleno amarillo mientras hay una pinza
+var CONTROL_MARKER_FILL = "rgba(255, 194, 51, 0.5)"; // Relleno amarillo mientras hay una pinza
 
 // ================= Datos de control (lo que se enviará al Arduino) =================
 
@@ -745,32 +750,65 @@ function getHandedness(result, handIndex) {
   return { name: HAND_NAMES[label] || label || "Mano", score: category.score };
 }
 
-// Texto blanco con contorno oscuro; se ajusta para que no se salga por los bordes del canvas
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), Math.max(min, max));
+}
+
+// Texto blanco con un contorno fino; se ajusta para que no se salga por los bordes del canvas.
+// Se usa para los números de nodo: son muchos y chicos, una pastilla por número taparía la mano
 function drawLabel(text, x, y, fontSize, align) {
-  context.font = "600 " + fontSize + "px system-ui, sans-serif";
+  context.font = "500 " + fontSize + "px system-ui, sans-serif";
   context.textAlign = align;
+  context.textBaseline = "middle";
 
   var width = context.measureText(text).width;
   var margin = fontSize / 2;
   var minX = align === "center" ? width / 2 + margin : margin;
   var maxX = overlay.width - (align === "center" ? width / 2 : width) - margin;
-  x = Math.min(Math.max(x, minX), Math.max(minX, maxX));
-  y = Math.min(Math.max(y, fontSize), overlay.height - fontSize);
+  x = clamp(x, minX, maxX);
+  y = clamp(y, fontSize, overlay.height - fontSize);
 
   context.lineWidth = Math.max(2, fontSize / 4);
-  context.strokeStyle = OUTLINE_COLOR;
+  context.strokeStyle = LABEL_OUTLINE_COLOR;
   context.strokeText(text, x, y);
   context.fillStyle = LABEL_COLOR;
   context.fillText(text, x, y);
 }
 
+// Etiqueta sobre una pastilla oscura translúcida, centrada en (x, y) y siempre dentro del canvas.
+// Se lee sobre cualquier fondo sin el contorno grueso que hacía falta con texto suelto
+function drawPill(text, x, y, fontSize) {
+  context.font = "600 " + fontSize + "px system-ui, sans-serif";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+
+  var height = fontSize * 1.7;
+  var width = context.measureText(text).width + fontSize * 1.2;
+  var margin = 4;
+  var centerX = clamp(x, width / 2 + margin, overlay.width - width / 2 - margin);
+  var centerY = clamp(y, height / 2 + margin, overlay.height - height / 2 - margin);
+
+  context.beginPath();
+  if (typeof context.roundRect === "function") {
+    context.roundRect(centerX - width / 2, centerY - height / 2, width, height, height / 2);
+  } else {
+    context.rect(centerX - width / 2, centerY - height / 2, width, height); // Navegadores sin roundRect
+  }
+  context.fillStyle = PILL_COLOR;
+  context.fill();
+  context.fillStyle = LABEL_COLOR;
+  context.fillText(text, centerX, centerY);
+}
+
 function drawHand(landmarks, handedness, scale) {
   var points = landmarks.map(toCanvasPoint);
 
+  context.save();
+  context.globalAlpha = SKELETON_ALPHA;
   context.lineCap = "round";
   context.lineJoin = "round";
 
-  // Huesos: primero un contorno oscuro ancho y encima el color del dedo
+  // Huesos: un contorno oscuro suave y encima una línea fina del color del dedo
   HAND_PARTS.forEach(function (part) {
     part.connections.forEach(function (pair) {
       var start = points[pair[0]];
@@ -782,42 +820,41 @@ function drawHand(landmarks, handedness, scale) {
       context.moveTo(start.x, start.y);
       context.lineTo(end.x, end.y);
       context.strokeStyle = OUTLINE_COLOR;
-      context.lineWidth = 6 * scale;
+      context.lineWidth = 3.5 * scale;
       context.stroke();
       context.strokeStyle = part.color;
-      context.lineWidth = 3 * scale;
+      context.lineWidth = 2 * scale;
       context.stroke();
     });
   });
 
-  // Nodos: las puntas de los dedos un poco más grandes
+  // Nodos chicos: las puntas de los dedos apenas más grandes
   points.forEach(function (point, index) {
-    var radius = (FINGERTIPS.indexOf(index) !== -1 ? 7 : 5) * scale;
+    var radius = (FINGERTIPS.indexOf(index) !== -1 ? 4 : 2.5) * scale;
     context.beginPath();
     context.arc(point.x, point.y, radius, 0, Math.PI * 2);
     context.fillStyle = nodeColor(index);
     context.fill();
-    context.lineWidth = 2 * scale;
+    context.lineWidth = scale;
     context.strokeStyle = OUTLINE_COLOR;
     context.stroke();
   });
-
-  context.textBaseline = "middle";
+  context.restore();
 
   if (showIndices) {
     points.forEach(function (point, index) {
-      drawLabel(String(index), point.x + 8 * scale, point.y - 8 * scale, Math.round(11 * scale), "left");
+      drawLabel(String(index), point.x + 6 * scale, point.y - 6 * scale, Math.round(9 * scale), "left");
     });
   }
 
-  // Lateralidad y confianza debajo de la muñeca, o encima si la muñeca está en el borde inferior
+  // Solo el nombre de la mano, debajo de la muñeca (o encima si está en el borde inferior): con dos manos
+  // en cuadro indica cuál es cuál. La confianza y las coordenadas se muestran fuera del dibujo
   if (handedness && points[0]) {
-    var fontSize = Math.round(14 * scale);
-    var offset = 24 * scale;
+    var fontSize = Math.round(11 * scale);
+    var offset = 22 * scale;
     var wrist = points[0];
     var labelY = wrist.y + offset + fontSize <= overlay.height ? wrist.y + offset : wrist.y - offset;
-    var text = handedness.name + " " + Math.round(handedness.score * 100) + "%";
-    drawLabel(text, wrist.x, labelY, fontSize, "center");
+    drawPill(handedness.name, wrist.x, labelY, fontSize);
   }
 }
 
@@ -830,8 +867,8 @@ function getDrawScale() {
 function drawControlArea(scale) {
   var left = CONTROL_MARGIN * overlay.width;
   var top = CONTROL_MARGIN * overlay.height;
-  context.setLineDash([8 * scale, 8 * scale]);
-  context.lineWidth = 2 * scale;
+  context.setLineDash([6 * scale, 8 * scale]);
+  context.lineWidth = 1.5 * scale;
   context.strokeStyle = CONTROL_AREA_COLOR;
   context.strokeRect(left, top, overlay.width - 2 * left, overlay.height - 2 * top);
   context.setLineDash([]);
@@ -846,8 +883,8 @@ function drawControlMarker(scale) {
 
   var x = smoothedPoint.x * overlay.width;
   var y = smoothedPoint.y * overlay.height;
-  var radius = 14 * scale;
-  var cross = 6 * scale;
+  var radius = 12 * scale;
+  var cross = 5 * scale;
 
   context.beginPath();
   context.arc(x, y, radius, 0, Math.PI * 2);
@@ -859,15 +896,14 @@ function drawControlMarker(scale) {
   context.lineTo(x + cross, y);
   context.moveTo(x, y - cross);
   context.lineTo(x, y + cross);
-  context.lineWidth = 5 * scale;
+  context.lineWidth = 3.5 * scale;
   context.strokeStyle = OUTLINE_COLOR;
   context.stroke();
-  context.lineWidth = 2.5 * scale;
+  context.lineWidth = 1.75 * scale;
   context.strokeStyle = CONTROL_MARKER_COLOR;
   context.stroke();
 
-  context.textBaseline = "middle";
-  drawLabel("X " + data.x + " · Y " + data.y, x, y - radius - 14 * scale, Math.round(13 * scale), "center");
+  drawPill("X " + data.x + " · Y " + data.y, x, y - radius - 14 * scale, Math.round(11 * scale));
 }
 
 function drawResult(result) {
@@ -888,18 +924,36 @@ function clearOverlay() {
 
 // ================= Indicadores =================
 
+// Eje y valor en spans separados (la página puede mostrar el eje más tenue).
 // Ancho fijo para que los números no "bailen" al cambiar de signo: "x  0.52", "z -0.04"
-function formatCoordinate(axis, value) {
-  return axis + " " + value.toFixed(2).padStart(5, " ");
+function coordinatePart(axis, value) {
+  return {
+    className: "hand-coord",
+    children: [
+      { className: "hand-axis", text: axis + " " },
+      { className: "hand-value", text: value.toFixed(2).padStart(5, " ") }
+    ]
+  };
+}
+
+// Cada parte es un span con texto o con otras partes adentro (children)
+function createPart(part) {
+  var span = document.createElement("span");
+  span.className = part.className || "";
+  if (part.children) {
+    part.children.forEach(function (child) {
+      span.appendChild(createPart(child));
+    });
+  } else {
+    span.textContent = part.text; // textContent: nunca se interpreta como HTML
+  }
+  return span;
 }
 
 function addHandDataRow(parts) {
   var item = document.createElement("li");
   parts.forEach(function (part) {
-    var span = document.createElement("span");
-    span.className = part.className || "";
-    span.textContent = part.text; // textContent: nunca se interpreta como HTML
-    item.appendChild(span);
+    item.appendChild(createPart(part));
   });
   handDataList.appendChild(item);
 }
@@ -925,21 +979,27 @@ function updateReadouts(result, now) {
     var handedness = getHandedness(result, handIndex);
     var tip = landmarks[INDEX_FINGERTIP];
     var name = handedness
-      ? handedness.name + " " + Math.round(handedness.score * 100) + "%"
-      : "Mano " + (handIndex + 1);
+      ? {
+          className: "hand-name",
+          children: [
+            { text: handedness.name + " " },
+            { className: "hand-score", text: Math.round(handedness.score * 100) + "%" }
+          ]
+        }
+      : { className: "hand-name", text: "Mano " + (handIndex + 1) };
 
     if (!tip) {
-      addHandDataRow([{ className: "hand-name", text: name }, { text: "sin datos del nodo 8" }]);
+      addHandDataRow([name, { text: "sin datos del nodo 8" }]);
       return;
     }
 
     // x se informa como se ve en pantalla: con vista espejo, mover la mano a la derecha aumenta x
     var x = isMirrored ? 1 - tip.x : tip.x;
     addHandDataRow([
-      { className: "hand-name", text: name },
-      { text: formatCoordinate("x", x) },
-      { text: formatCoordinate("y", tip.y) },
-      { text: formatCoordinate("z", tip.z) }
+      name,
+      coordinatePart("x", x),
+      coordinatePart("y", tip.y),
+      coordinatePart("z", tip.z)
     ]);
   });
 }

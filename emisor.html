@@ -11,7 +11,12 @@
 <body class="theme-emisor">
   <main class="app">
     <header class="app-header">
-      <h1>Emisor</h1>
+      <!-- Mismo ícono que la tarjeta del emisor en la portada -->
+      <h1>
+        <span class="title-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="8" /><circle cx="12" cy="10" r="3" /><path d="M7 22h10M12 22v-4" /></svg>
+        </span>Emisor
+      </h1>
       <p class="tagline">Tu mano controla el robot del profesor · MediaPipe + MQTT · <a href="index.html">volver al inicio</a></p>
     </header>
 
@@ -19,8 +24,9 @@
     <div class="column column-camera">
       <div class="toolbar">
         <button type="button" class="btn btn-primary" id="cameraButton">Iniciar cámara</button>
+        <!-- Apagado por defecto: con 21 números por mano el dibujo se vuelve difícil de leer -->
         <label class="toggle">
-          <input type="checkbox" id="showIndicesCheckbox" checked />
+          <input type="checkbox" id="showIndicesCheckbox" />
           Números de nodo
         </label>
         <label class="toggle">
@@ -39,35 +45,30 @@
       <p class="status" id="status" role="status" aria-live="polite"></p>
 
       <!-- El video muestra la cámara; el canvas encima dibuja los nodos detectados.
-           stage-area es el espacio disponible; el escenario se ajusta adentro sin deformar la imagen -->
-      <div class="stage-area">
-        <section class="stage is-mirrored" id="stage" aria-label="Vista de la cámara con los nodos de las manos">
-          <video id="video" autoplay muted playsinline></video>
-          <canvas id="overlay"></canvas>
-          <p class="stage-placeholder" id="stagePlaceholder">Cámara apagada</p>
-        </section>
+           stage-area es el espacio disponible; el escenario se ajusta adentro sin deformar la imagen.
+           Sobre el video van dos capas de datos (solo con la cámara encendida): los indicadores técnicos,
+           chicos en una esquina, y los datos de la mano en una franja abajo -->
+      <div class="stage-area stage-area-top">
+        <!-- stage-frame mide lo mismo que el video: la franja de datos se apoya sobre su borde inferior.
+             En celulares la franja pasa a ir debajo del video para no taparlo -->
+        <div class="stage-frame">
+          <section class="stage is-mirrored" id="stage" aria-label="Vista de la cámara con los nodos de las manos">
+            <video id="video" autoplay muted playsinline></video>
+            <canvas id="overlay"></canvas>
+            <p class="stage-placeholder" id="stagePlaceholder">Cámara apagada</p>
+
+            <p class="stage-meta">
+              Manos <b id="handsValue">0</b> · FPS <b id="fpsValue">–</b> · <b id="delegateValue">–</b>
+            </p>
+          </section>
+
+          <!-- Sin aria-live a propósito: se actualiza varias veces por segundo y saturaría al lector de pantalla -->
+          <section class="hand-data stage-hud" aria-label="Coordenadas de la punta del índice">
+            <h2 class="hand-data-title">Punta del índice (nodo 8) · x, y de 0 a 1 · z relativa a la muñeca</h2>
+            <ul class="hand-data-list" id="handDataList"></ul>
+          </section>
+        </div>
       </div>
-
-      <section class="stats" aria-label="Indicadores">
-        <div class="stat">
-          <span class="section-label">Manos</span>
-          <span class="stat-value" id="handsValue">0</span>
-        </div>
-        <div class="stat">
-          <span class="section-label">FPS</span>
-          <span class="stat-value" id="fpsValue">–</span>
-        </div>
-        <div class="stat">
-          <span class="section-label">Procesador</span>
-          <span class="stat-value" id="delegateValue">–</span>
-        </div>
-      </section>
-
-      <!-- Sin aria-live a propósito: se actualiza varias veces por segundo y saturaría al lector de pantalla -->
-      <section class="hand-data" aria-label="Coordenadas de la punta del índice">
-        <h2 class="section-label">Punta del índice (nodo 8) · x, y de 0 a 1 según la vista · z relativa a la muñeca</h2>
-        <ul class="hand-data-list" id="handDataList"></ul>
-      </section>
     </div>
 
     <!-- Columna derecha: lo que se envía, la conexión con el broker y el estado del robot -->

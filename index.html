@@ -10,57 +10,203 @@
 </head>
 <body>
   <main class="landing">
-    <h1>Brazo robot por gestos</h1>
-    <p class="landing-lead">
-      Un alumno mueve la mano frente a su webcam y, a miles de kilómetros, un Arduino responde.
-      La detección corre en el navegador con MediaPipe, los datos viajan por internet con MQTT
-      y llegan al robot por USB con Web Serial.
-    </p>
+    <!-- Hero: presentación del proyecto. Cada tecnología lleva el color de la zona donde trabaja;
+         las tarjetas y el diagrama de abajo repiten los mismos colores -->
+    <header class="landing-hero">
+      <div class="hero-text">
+        <p class="hero-eyebrow">Curso de robótica con Arduino</p>
+        <h1>Brazo robot por gestos</h1>
+        <p class="landing-lead">
+          Un alumno mueve la mano frente a su webcam y, a miles de kilómetros, un
+          <strong class="tech zone-robot">Arduino</strong> responde.
+          La detección corre en el navegador con <strong class="tech zone-student">MediaPipe</strong>,
+          los datos viajan por internet con <strong class="tech zone-cloud">MQTT</strong>
+          y llegan al robot por <strong class="tech zone-teacher">USB con Web Serial</strong>.
+        </p>
+      </div>
+      <figure class="landing-figure">
+        <img
+          class="landing-photo"
+          src="assets/brazo-robot.webp"
+          width="1000"
+          height="1333"
+          alt="El brazo robot del curso: piezas azules impresas en 3D y servomotores a la vista"
+        />
+      </figure>
+    </header>
 
-    <nav class="role-cards" aria-label="Elegir rol">
-      <!-- theme-emisor: la tarjeta anticipa el color de la página del emisor -->
-      <a class="role-card theme-emisor" href="emisor.html">
-        <h2>Emisor</h2>
-        <p>Para los alumnos: tu cámara detecta la mano y envía la posición y el gesto cuando el profesor te da el control.</p>
-        <span class="role-link">Abrir el emisor →</span>
-      </a>
-      <a class="role-card" href="receptor.html">
-        <h2>Receptor</h2>
-        <p>Para el profesor: conecta el Arduino, elige qué alumno controla el robot y reenvía sus gestos por USB.</p>
-        <span class="role-link">Abrir el receptor →</span>
-      </a>
-      <a class="role-card" href="hand-tracking.html">
-        <h2>Versión local</h2>
-        <p>Cámara y Arduino en la misma PC, sin internet de por medio. Ideal para probar el montaje.</p>
-        <span class="role-link">Abrir la versión local →</span>
-      </a>
+    <!-- Páginas del proyecto. Emisor y receptor van juntos (son las dos puntas de la versión remota, unidas por MQTT);
+         la versión local queda aparte, del otro lado de un separador -->
+    <nav class="roles" aria-label="Páginas del proyecto">
+      <section class="role-group role-group-remote" aria-labelledby="remote-title">
+        <h2 class="group-label" id="remote-title">
+          Versión remota <span class="group-label-note">· alumno y profesor conectados por internet</span>
+        </h2>
+        <div class="role-pair">
+          <!-- Cada tarjeta anticipa el color de su página: índigo el emisor, verde azulado el receptor -->
+          <a class="role-card zone-student" href="emisor.html">
+            <div class="role-head">
+              <span class="role-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="8" /><circle cx="12" cy="10" r="3" /><path d="M7 22h10M12 22v-4" /></svg>
+              </span>
+              <h3>Emisor</h3>
+            </div>
+            <p>Para los alumnos: tu cámara detecta la mano y envía la posición y el gesto cuando el profesor te da el control.</p>
+            <span class="role-link">Abrir el emisor →</span>
+          </a>
+
+          <div class="role-bridge" aria-hidden="true">
+            <span class="role-bridge-icon">
+              <svg viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" /></svg>
+            </span>
+            <span class="role-bridge-label">MQTT</span>
+          </div>
+
+          <a class="role-card zone-teacher" href="receptor.html">
+            <div class="role-head">
+              <span class="role-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="3" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
+              </span>
+              <h3>Receptor</h3>
+            </div>
+            <p>Para el profesor: conecta el Arduino, elige qué alumno controla el robot y reenvía sus gestos por USB.</p>
+            <span class="role-link">Abrir el receptor →</span>
+          </a>
+        </div>
+      </section>
+
+      <section class="role-group role-group-local" aria-labelledby="local-title">
+        <h2 class="group-label" id="local-title">
+          Para probar <span class="group-label-note">· todo en una sola PC</span>
+        </h2>
+        <a class="role-card zone-local" href="hand-tracking.html">
+          <div class="role-head">
+            <span class="role-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16" /></svg>
+            </span>
+            <h3>Versión local</h3>
+          </div>
+          <p>Cámara y Arduino en la misma PC, sin internet de por medio. Ideal para probar el montaje.</p>
+          <span class="role-link">Abrir la versión local →</span>
+        </a>
+      </section>
     </nav>
 
-    <section class="flow" aria-label="Cómo funciona">
-      <h2 class="section-label">Cómo viajan los datos</h2>
-      <ol class="flow-steps">
-        <li class="flow-step">Webcam del alumno</li>
-        <li class="flow-arrow" aria-hidden="true">→</li>
-        <li class="flow-step">MediaPipe: X, Y, dedos y gesto</li>
-        <li class="flow-arrow" aria-hidden="true">→</li>
-        <li class="flow-step">Broker MQTT en la nube</li>
-        <li class="flow-arrow" aria-hidden="true">→</li>
-        <li class="flow-step">Página del profesor</li>
-        <li class="flow-arrow" aria-hidden="true">→</li>
-        <li class="flow-step">Arduino por USB</li>
+    <section class="flow" aria-labelledby="flow-title">
+      <div class="section-head">
+        <h2 class="section-title" id="flow-title">Cómo viajan los datos</h2>
+        <p class="section-intro">El camino de un gesto, desde la webcam del alumno hasta los motores del brazo.</p>
+      </div>
+
+      <!-- Recorrido en 5 paradas. Las conexiones (.flow-link) son decorativas: lo que dicen ya está en cada descripción -->
+      <ol class="flow-track">
+        <li class="flow-stop zone-student">
+          <span class="flow-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="8" /><circle cx="12" cy="10" r="3" /><path d="M7 22h10M12 22v-4" /></svg>
+          </span>
+          <div class="flow-text">
+            <span class="flow-where">Alumno</span>
+            <h3 class="flow-title">Webcam</h3>
+            <p class="flow-desc">Filma la mano en vivo.</p>
+          </div>
+          <span class="flow-link to-student" aria-hidden="true"><span class="flow-link-label">video</span></span>
+        </li>
+
+        <li class="flow-stop zone-student">
+          <span class="flow-icon" aria-hidden="true">
+            <!-- Esqueleto de la mano: algunos de los 21 puntos que detecta MediaPipe -->
+            <svg viewBox="0 0 24 24" class="icon-thin"><path d="M12 21 8.5 17.5 5 13.5M12 21 8.5 11.5 8 4.5M8.5 11.5 12 11 12 3M12 11 15.5 11.5 16 4.5M15.5 11.5 18 13.5 19.5 8M18 13.5 12 21" /><g class="icon-dots"><circle cx="12" cy="21" r="1.6" /><circle cx="5" cy="13.5" r="1.6" /><circle cx="8" cy="4.5" r="1.6" /><circle cx="12" cy="3" r="1.6" /><circle cx="16" cy="4.5" r="1.6" /><circle cx="19.5" cy="8" r="1.6" /></g></svg>
+          </span>
+          <div class="flow-text">
+            <span class="flow-where">Alumno</span>
+            <h3 class="flow-title">MediaPipe</h3>
+            <p class="flow-desc">Ubica 21 puntos de la mano y calcula X, Y, dedos y gesto.</p>
+          </div>
+          <span class="flow-link to-cloud" aria-hidden="true"><span class="flow-link-label">internet</span></span>
+        </li>
+
+        <li class="flow-stop zone-cloud">
+          <span class="flow-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" /></svg>
+          </span>
+          <div class="flow-text">
+            <span class="flow-where">Internet</span>
+            <h3 class="flow-title">Broker MQTT</h3>
+            <p class="flow-desc">Recibe el mensaje por internet y se lo entrega al profesor.</p>
+          </div>
+          <span class="flow-link to-teacher" aria-hidden="true"><span class="flow-link-label">internet</span></span>
+        </li>
+
+        <li class="flow-stop zone-teacher">
+          <span class="flow-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="3" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
+          </span>
+          <div class="flow-text">
+            <span class="flow-where">Profesor</span>
+            <h3 class="flow-title">Página del profesor</h3>
+            <p class="flow-desc">Valida el mensaje y lo envía por USB con Web Serial.</p>
+          </div>
+          <span class="flow-link to-robot" aria-hidden="true"><span class="flow-link-label">USB</span></span>
+        </li>
+
+        <li class="flow-stop zone-robot">
+          <span class="flow-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M13 21h8M14.5 21v-2a2.5 2.5 0 0 1 5 0v2M17 16.5V7M15.5 5H7M5 5v3.5M3.5 11V8.5h3V11" /><circle cx="17" cy="5" r="2" /></svg>
+          </span>
+          <div class="flow-text">
+            <span class="flow-where">Robot</span>
+            <h3 class="flow-title">Arduino</h3>
+            <p class="flow-desc">Mueve los motores del brazo según el gesto.</p>
+          </div>
+        </li>
       </ol>
+
+      <!-- Anatomía del mensaje: es el mismo texto en todo el recorrido (ver js/protocol.js) -->
+      <div class="packet">
+        <p class="packet-caption">
+          <strong>El mensaje que viaja</strong>
+          <span>Una línea de texto, hasta 5 veces por segundo.</span>
+        </p>
+        <dl class="packet-parts">
+          <div class="packet-part">
+            <dt><code>X:52</code></dt>
+            <dd>horizontal, de 0 a 100</dd>
+          </div>
+          <div class="packet-part">
+            <dt><code>Y:31</code></dt>
+            <dd>vertical, de 0 a 100</dd>
+          </div>
+          <div class="packet-part">
+            <dt><code>D:2</code></dt>
+            <dd>dedos extendidos</dd>
+          </div>
+          <div class="packet-part">
+            <dt><code>G:V</code></dt>
+            <dd>gesto</dd>
+          </div>
+        </dl>
+      </div>
     </section>
 
-    <ul class="landing-notes">
-      <li>El receptor y la versión local necesitan Chrome o Edge de escritorio (Web Serial).</li>
-      <li>El emisor necesita una webcam y un navegador actualizado.</li>
-      <li>El profesor entrega la sala, el usuario y la contraseña para conectarse al broker.</li>
-    </ul>
+    <section class="landing-notes" aria-labelledby="notes-title">
+      <h2 class="section-label" id="notes-title">Para tener en cuenta</h2>
+      <ul>
+        <li>El receptor y la versión local necesitan Chrome o Edge de escritorio (Web Serial).</li>
+        <li>El emisor necesita una webcam y un navegador actualizado.</li>
+        <li>El profesor entrega la sala, el usuario y la contraseña para conectarse al broker.</li>
+      </ul>
+    </section>
 
-    <p class="landing-footer">
-      Proyecto del curso de robótica con Arduino ·
-      <a href="https://github.com/luabfr/brazo-robot-por-gestos">código en GitHub</a>
-    </p>
+    <footer class="landing-footer">
+      <p>
+        Proyecto del curso de robótica con Arduino ·
+        <a href="https://github.com/luabfr/brazo-robot-por-gestos">código en GitHub</a>
+      </p>
+      <p>
+        Brazo robot impreso en 3D ·
+        <a href="https://makerworld.com/es/models/1101858-robotic-arm-3-axis-connected#profileId-1097227">modelo en MakerWorld</a>
+      </p>
+    </footer>
   </main>
 </body>
 </html>

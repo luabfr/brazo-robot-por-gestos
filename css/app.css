@@ -29,6 +29,19 @@
   --log-bg: #f7f8fb;
   --log-rx: #0f6f8d;
   --log-tx: #6b3fb0;
+
+  /* Zonas del recorrido de los datos (portada): alumno, internet, profesor y robot.
+     Alumno usa el índigo del emisor y profesor el verde azulado del receptor, para que todo cuente la misma historia.
+     Contraste WCAG AA verificado del color sobre su fondo teñido, la tarjeta y el fondo (mínimo 4,86:1) */
+  --zone-student: #3b5bdb;
+  --zone-student-tint: #e9eeff;
+  --zone-cloud: #9332b0;
+  --zone-cloud-tint: #f5eafa;
+  --zone-teacher: #0b7476;
+  --zone-teacher-tint: #e2f3f3;
+  --zone-robot: #a8500a;
+  --zone-robot-tint: #fdf0e1;
+  --zone-icon: #ffffff;
 }
 
 /* Modo oscuro según la preferencia del sistema */
@@ -55,6 +68,16 @@
     --log-bg: #10141b;
     --log-rx: #5cc8e6;
     --log-tx: #b99bf0;
+
+    --zone-student: #8fa3ff;
+    --zone-student-tint: #1d2442;
+    --zone-cloud: #df8ff2;
+    --zone-cloud-tint: #2c1c36;
+    --zone-teacher: #4fcacc;
+    --zone-teacher-tint: #11302f;
+    --zone-robot: #f7b04a;
+    --zone-robot-tint: #322512;
+    --zone-icon: #0f131a;
   }
 }
 
@@ -149,6 +172,31 @@ h1 {
 /* El azul por defecto del navegador casi no se ve en modo oscuro: los enlaces usan el acento de cada página */
 .tagline a {
   color: var(--accent);
+}
+
+/* Ícono redondo junto al título (el mismo de la tarjeta de la portada), en el color de la página.
+   Va en línea y no como flex: así el título conserva su línea base y la descripción de al lado queda alineada.
+   vertical-align centra el círculo (1,45em de alto) sobre la altura de las mayúsculas */
+.title-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 1.45em;
+  height: 1.45em;
+  margin-right: 0.4em;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-text);
+  vertical-align: -0.375em;
+}
+
+.title-icon svg {
+  width: 56%;
+  height: 56%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .section-label {
@@ -342,6 +390,16 @@ h1 {
 .hand-name {
   min-width: 16ch;
   font-weight: 700;
+}
+
+/* La confianza y el nombre del eje son datos secundarios: van más tenues que el nombre y los valores */
+.hand-score,
+.hand-axis {
+  color: var(--muted);
+}
+
+.hand-score {
+  font-weight: 600;
 }
 
 .hand-empty {
@@ -1013,135 +1071,967 @@ h1 {
   }
 }
 
-/* ================= Portada (index.html) ================= */
+/* ================= Datos sobre el video (emisor) ================= */
 
-.landing {
-  width: 100%;
-  max-width: 980px;
-  margin: auto 0;
-  padding: 32px 28px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  box-shadow: var(--shadow);
+/* El escenario siempre es oscuro, en modo claro y oscuro: estas capas usan texto claro fijo.
+   Solo se muestran con la cámara encendida (.is-live) y no capturan el mouse */
+.stage-frame {
+  position: relative;
 }
 
-.landing h1 {
-  font-size: 2rem;
+.stage-meta,
+.stage-hud {
+  position: absolute;
+  pointer-events: none;
 }
 
-.landing-lead {
-  margin-top: 8px;
-  max-width: 62ch;
-  color: var(--muted);
+.stage:not(.is-live) .stage-meta,
+.stage:not(.is-live) ~ .stage-hud {
+  display: none;
+}
+
+/* En escritorio el video queda arriba, pegado a los controles: el espacio libre va abajo y no en dos huecos */
+@media (min-width: 1180px) and (min-height: 540px) {
+  .stage-area-top {
+    place-items: start center;
+  }
+}
+
+/* Indicadores técnicos (manos, FPS y procesador): chicos y translúcidos, arriba a la derecha.
+   Solo importan si la detección anda lenta */
+.stage-meta {
+  top: 10px;
+  right: 10px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(11, 14, 19, 0.55);
+  color: var(--stage-text);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.stage-meta b {
+  color: #e9edf4;
+  font-weight: 700;
+}
+
+/* Datos de la mano: franja inferior con degradé, como un subtítulo. Es el dato principal de la cámara */
+.stage-hud {
+  right: 0;
+  bottom: 0;
+  left: 0;
+  margin: 0;
+  padding: 40px 16px 12px;
+  border-radius: 0 0 16px 16px; /* las mismas esquinas que el video */
+  background: linear-gradient(to top, rgba(11, 14, 19, 0.85), rgba(11, 14, 19, 0.55) 55%, rgba(11, 14, 19, 0));
+  color: #ffffff;
+}
+
+.hand-data-title {
+  color: var(--stage-text);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* .stage-hud antepuesto: le gana a las reglas de la lista en la columna de la cámara (grilla, alto mínimo) */
+.stage-hud .hand-data-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 32px;
+  min-height: 0;
+  margin-top: 6px;
   font-size: 1.05rem;
 }
 
-.role-cards {
+.stage-hud .hand-data-list li {
+  align-items: center;
+  gap: 4px 14px;
+  padding: 0;
+  border-bottom: 0;
+}
+
+/* Nombre de la mano en una pastilla del color del emisor */
+.stage-hud .hand-name {
+  min-width: 0;
+  padding: 1px 10px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 0.9rem;
+}
+
+/* 0,85 y no menos: con 0,75 el porcentaje quedaba en 4,1:1 sobre el índigo, por debajo de AA */
+.stage-hud .hand-score {
+  color: inherit;
+  opacity: 0.85;
+}
+
+.stage-hud .hand-value {
+  font-weight: 700;
+}
+
+.stage-hud .hand-axis {
+  color: var(--stage-text);
+}
+
+.stage-hud .hand-empty {
+  color: var(--stage-text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 0.9rem;
+}
+
+/* Celular: el video es chico y la franja lo taparía casi entero. Pasa a ser una tira oscura debajo del video
+   y la explicación de los ejes se oculta */
+@media (max-width: 600px) {
+  .stage-hud {
+    position: static;
+    margin-top: 8px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: var(--stage-bg);
+  }
+
+  .hand-data-title {
+    display: none;
+  }
+
+  /* Tamaños calculados para que cada mano (nombre y x, y, z) entre en una línea a 360 px de ancho */
+  .stage-hud .hand-data-list {
+    margin-top: 0;
+    font-size: 0.82rem;
+  }
+
+  .stage-hud .hand-data-list li {
+    gap: 2px 8px;
+  }
+
+  .stage-hud .hand-name {
+    padding: 1px 8px;
+    font-size: 0.78rem;
+  }
+}
+
+/* Celulares angostos: "Izquierda 96%" con x, y, z no entra en una línea; la confianza es el dato que menos importa */
+@media (max-width: 420px) {
+  .stage-hud .hand-score {
+    display: none;
+  }
+}
+
+/* ================= Portada (index.html) ================= */
+
+/* La portada no es una tarjeta única: es una columna de secciones con aire entre ellas
+   (hero, páginas del proyecto, recorrido de los datos y notas) */
+.landing {
+  width: 100%;
+  max-width: 1080px;
+  padding: 0 8px 16px;
+}
+
+/* Colores de cada zona. .to-* indica la zona de destino de una conexión del diagrama.
+   zone-local (versión local) usa el gris de los textos secundarios: es la opción "aparte" */
+.zone-student { --zone: var(--zone-student); --zone-tint: var(--zone-student-tint); }
+.zone-cloud { --zone: var(--zone-cloud); --zone-tint: var(--zone-cloud-tint); }
+.zone-teacher { --zone: var(--zone-teacher); --zone-tint: var(--zone-teacher-tint); }
+.zone-robot { --zone: var(--zone-robot); --zone-tint: var(--zone-robot-tint); }
+.zone-local { --zone: var(--muted); --zone-tint: var(--bg); }
+.to-student { --zone-next: var(--zone-student); }
+.to-cloud { --zone-next: var(--zone-cloud); }
+.to-teacher { --zone-next: var(--zone-teacher); }
+.to-robot { --zone-next: var(--zone-robot); }
+
+/* Íconos de línea (tarjetas, puente MQTT y diagrama): mismo trazo en todos */
+.role-icon svg,
+.role-bridge-icon svg,
+.flow-icon svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------- Hero ---------- */
+
+/* Texto a la izquierda y foto a la derecha, centrados entre sí.
+   En celulares la foto queda chica junto al título y la bajada usa todo el ancho (ver media queries) */
+.landing-hero {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-  margin-top: 24px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 64px;
+  padding-top: 32px;
+}
+
+.hero-eyebrow {
+  color: var(--zone-teacher);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.landing h1 {
+  margin-top: 10px;
+  font-size: clamp(2.1rem, 1.5rem + 2.2vw, 3.1rem);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
+.landing-lead {
+  margin-top: 18px;
+  max-width: 58ch;
+  color: var(--muted);
+  font-size: 1.15rem;
+  line-height: 1.7; /* aire para que los resaltados de dos líneas seguidas no se toquen */
+}
+
+/* Tecnologías resaltadas en la bajada. nowrap evita que "USB con Web Serial" quede partido en dos líneas */
+.tech {
+  padding: 0.1em 0.35em;
+  border-radius: 6px;
+  background: var(--zone-tint);
+  color: var(--zone);
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.landing-figure {
+  position: relative;
+  width: 240px;
+  margin: 12px 14px 12px 0; /* lugar para la tarjeta inclinada de atrás */
+}
+
+/* Tarjeta inclinada detrás de la foto, en el color del robot: le da aire de ilustración */
+.landing-figure::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: var(--zone-robot-tint);
+  transform: rotate(6deg);
+}
+
+/* La foto es vertical: se recorta cuadrada, centrada en el brazo */
+.landing-photo {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: cover;
+  object-position: 50% 48%;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  box-shadow: var(--shadow);
+}
+
+/* ---------- Páginas del proyecto ---------- */
+
+/* Dos grupos: la versión remota (dos tarjetas unidas por MQTT) y, aparte, la versión local */
+.roles {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  margin-top: 48px;
+}
+
+.role-group {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* La versión remota va dentro de un recuadro: emisor y receptor se leen como un par */
+.role-group-remote {
+  padding: 18px 20px 20px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+/* La versión local queda del otro lado de una línea punteada. Usa el mismo relleno vertical que el
+   recuadro remoto (más su borde de 1 px) para que las tarjetas de los dos grupos queden alineadas */
+.role-group-local {
+  margin-left: 28px;
+  padding: 19px 0 21px 28px;
+  border-left: 2px dashed var(--border);
+}
+
+.group-label {
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.group-label-note {
+  color: var(--muted);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+
+.role-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 76px minmax(0, 1fr);
+  flex: 1;
 }
 
 .role-card {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  gap: 8px;
-  padding: 18px;
+  gap: 10px;
+  padding: 20px;
   border: 1px solid var(--border);
   border-radius: 16px;
-  background: var(--bg);
+  background: var(--zone-tint);
   color: var(--text);
   text-decoration: none;
-  transition: border-color 0.2s, transform 0.1s;
+  transition: border-color 0.2s, transform 0.15s;
 }
 
 .role-card:hover {
-  border-color: var(--accent);
+  border-color: var(--zone);
+  transform: translateY(-2px);
 }
 
 .role-card:focus-visible {
-  outline: 3px solid var(--accent);
+  outline: 3px solid var(--zone);
   outline-offset: 3px;
 }
 
-.role-card h2 {
-  font-size: 1.15rem;
+/* La versión local no lleva fondo teñido: así se distingue del par remoto */
+.role-card.zone-local {
+  background: var(--card);
+}
+
+.role-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.role-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--zone);
+  color: var(--zone-icon);
+}
+
+.role-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.role-card h3 {
+  font-size: 1.2rem;
 }
 
 .role-card p {
   color: var(--muted);
-  font-size: 0.92rem;
+  font-size: 0.94rem;
 }
 
 .role-card .role-link {
   margin-top: auto;
-  color: var(--accent);
+  padding-top: 4px;
+  color: var(--zone);
   font-weight: 600;
 }
 
-.flow {
-  margin-top: 28px;
-  padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
+/* El gris de la versión local no parece enlace: usa el verde azulado del sitio, en el tono que cumple AA */
+.role-card.zone-local .role-link {
+  color: var(--zone-teacher);
 }
 
-.flow-steps {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
+/* Puente entre emisor y receptor: los datos van de uno al otro por MQTT */
+.role-bridge {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+/* Línea con flecha de una tarjeta a la otra, del índigo del alumno al verde azulado del profesor */
+.role-bridge::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 2px;
+  height: 3px;
+  margin-top: -1.5px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--zone-student), var(--zone-cloud), var(--zone-teacher));
+}
+
+.role-bridge::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 8px solid var(--zone-teacher);
+  transform: translateY(-50%);
+}
+
+.role-bridge-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--zone-cloud);
+  color: var(--zone-icon);
+  box-shadow: 0 0 0 4px var(--card); /* corta la línea alrededor del ícono */
+}
+
+.role-bridge-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.role-bridge-label {
+  position: absolute;
+  top: calc(50% + 24px);
+  left: 50%;
+  color: var(--zone-cloud);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  transform: translateX(-50%);
+}
+
+/* ---------- Cómo viajan los datos (sección propia) ---------- */
+
+.flow {
+  margin-top: 96px;
+  padding: 40px 36px 36px;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.section-head {
+  max-width: 72ch;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.section-title {
+  font-size: 1.6rem;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.section-intro {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 1.02rem;
+}
+
+/* Recorrido de los datos: 5 paradas en columnas iguales, unidas por flechas */
+.flow-track {
+  --icon-size: 52px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-top: 40px;
   list-style: none;
 }
 
-.flow-step {
-  padding: 6px 12px;
+.flow-stop {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 0 6px;
+  text-align: center;
+}
+
+.flow-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  border-radius: 50%;
+  background: var(--zone);
+  color: var(--zone-icon);
+  box-shadow: 0 0 0 5px var(--zone-tint);
+}
+
+.flow-icon svg {
+  width: 26px;
+  height: 26px;
+}
+
+.flow-icon .icon-thin {
+  stroke-width: 1.5;
+}
+
+.flow-icon .icon-dots {
+  fill: currentColor;
+  stroke: none;
+}
+
+.flow-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.flow-where {
+  padding: 1px 8px;
   border-radius: 999px;
+  background: var(--zone-tint);
+  color: var(--zone);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.flow-title {
+  font-size: 1rem;
+  line-height: 1.3;
+}
+
+.flow-desc {
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+/* Conexión hacia la parada siguiente, a la altura del centro de los íconos.
+   Los porcentajes se miden sobre el ancho de la parada, que es igual al de la columna:
+   la línea arranca después de este ícono (y su aro) y termina antes del siguiente */
+.flow-link {
+  position: absolute;
+  top: calc(var(--icon-size) / 2 - 1.5px);
+  left: calc(50% + var(--icon-size) / 2 + 10px);
+  width: calc(100% - var(--icon-size) - 20px);
+  height: 3px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--zone), var(--zone-next));
+}
+
+/* Punta de flecha */
+.flow-link::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: -2px;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 8px solid var(--zone-next);
+  transform: translateY(-50%);
+}
+
+/* "Paquete" que recorre las flechas una tras otra: cada tramo ocupa 1 s de un ciclo de 4 s */
+.flow-link::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 9px;
+  height: 9px;
+  margin-top: -4.5px;
+  border-radius: 50%;
+  background: var(--zone-next);
+  box-shadow: 0 0 0 3px var(--card);
+  opacity: 0;
+  animation: flow-packet-x 4s linear infinite;
+}
+
+.flow-stop:nth-child(2) .flow-link::before { animation-delay: 1s; }
+.flow-stop:nth-child(3) .flow-link::before { animation-delay: 2s; }
+.flow-stop:nth-child(4) .flow-link::before { animation-delay: 3s; }
+
+@keyframes flow-packet-x {
+  0% { left: 0; opacity: 0; }
+  5% { opacity: 1; }
+  20% { opacity: 1; }
+  25% { left: calc(100% - 9px); opacity: 0; }
+  100% { left: calc(100% - 9px); opacity: 0; }
+}
+
+@keyframes flow-packet-y {
+  0% { top: 0; opacity: 0; }
+  5% { opacity: 1; }
+  20% { opacity: 1; }
+  25% { top: calc(100% - 9px); opacity: 0; }
+  100% { top: calc(100% - 9px); opacity: 0; }
+}
+
+/* Por dónde viaja ese tramo: video, internet o USB */
+.flow-link-label {
+  position: absolute;
+  bottom: 9px;
+  left: 50%;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+/* Anatomía del mensaje: la misma línea de texto que viaja de punta a punta */
+.packet {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+  margin-top: 40px;
+  padding: 16px 20px;
+  border: 1px dashed var(--border);
+  border-radius: 14px;
   background: var(--bg);
-  border: 1px solid var(--border);
+}
+
+.packet-caption {
+  display: flex;
+  flex: 1 1 200px;
+  flex-direction: column;
+  color: var(--muted);
   font-size: 0.9rem;
 }
 
-.flow-arrow {
-  color: var(--muted);
+.packet-caption strong {
+  color: var(--text);
 }
 
+.packet-parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.packet-part {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.packet-part code {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--zone-student);
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.packet-part dd {
+  max-width: 11ch;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.3;
+  text-align: center;
+}
+
+/* ---------- Notas y pie ---------- */
+
 .landing-notes {
-  margin-top: 20px;
+  margin-top: 64px;
+}
+
+.landing-notes ul {
+  margin-top: 12px;
   padding-left: 20px;
   color: var(--muted);
-  font-size: 0.92rem;
+  font-size: 0.95rem;
 }
 
 .landing-notes li + li {
-  margin-top: 4px;
+  margin-top: 6px;
 }
 
 .landing-footer {
-  margin-top: 24px;
-  font-size: 0.85rem;
+  margin-top: 40px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
   color: var(--muted);
+  font-size: 0.88rem;
 }
 
+.landing-footer p + p {
+  margin-top: 4px;
+}
+
+/* El acento del sitio (#0f8b8d) da 4,12:1 sobre blanco: los enlaces usan el tono de la zona del profesor, que cumple AA */
 .landing-footer a {
-  color: var(--accent);
+  color: var(--zone-teacher);
 }
 
-@media (max-width: 760px) {
-  .role-cards {
+/* ---------- Pantallas medianas y chicas ---------- */
+
+/* La versión local baja debajo de la remota, separada por la línea punteada en horizontal.
+   Como queda a todo el ancho, su tarjeta se acomoda en una fila: ícono y título, texto y enlace */
+@media (max-width: 1000px) {
+  .roles {
     grid-template-columns: 1fr;
   }
 
+  .role-group-local {
+    margin: 28px 0 0;
+    padding: 28px 0 0;
+    border-top: 2px dashed var(--border);
+    border-left: 0;
+  }
+
+  .role-card.zone-local {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 24px;
+  }
+
+  .role-card.zone-local .role-link {
+    margin-top: 0;
+    padding-top: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .flow {
+    margin-top: 72px;
+    padding: 28px 20px 24px;
+    border-radius: 20px;
+  }
+
+  .section-head {
+    text-align: left;
+  }
+
+  .flow-track {
+    margin-top: 28px;
+  }
+
+  .packet {
+    margin-top: 28px;
+  }
+
+  /* El recorrido pasa a ser vertical: ícono a la izquierda, texto a la derecha y flechas hacia abajo */
+  .flow-track {
+    --icon-size: 46px;
+    grid-template-columns: 1fr;
+  }
+
+  .flow-stop {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 0 0 28px;
+    text-align: left;
+  }
+
+  .flow-stop:last-child {
+    padding-bottom: 0;
+  }
+
+  .flow-text {
+    align-items: flex-start;
+  }
+
+  .flow-link {
+    top: calc(var(--icon-size) + 10px);
+    bottom: 8px;
+    left: calc(var(--icon-size) / 2 - 1.5px);
+    width: 3px;
+    height: auto;
+    background: linear-gradient(180deg, var(--zone), var(--zone-next));
+  }
+
+  .flow-link::after {
+    top: auto;
+    right: auto;
+    bottom: -2px;
+    left: 50%;
+    border-top: 8px solid var(--zone-next);
+    border-right: 5px solid transparent;
+    border-bottom: 0;
+    border-left: 5px solid transparent;
+    transform: translateX(-50%);
+  }
+
+  .flow-link::before {
+    top: 0;
+    left: 50%;
+    margin-top: 0;
+    margin-left: -4.5px;
+    animation-name: flow-packet-y;
+  }
+
+  /* La etiqueta del tramo va en el espacio libre entre dos paradas, al lado de la flecha */
+  .flow-link-label {
+    top: auto;
+    bottom: 0;
+    left: 14px;
+    transform: none;
+  }
+}
+
+/* Emisor y receptor uno debajo del otro, con el puente MQTT en vertical entre los dos */
+@media (max-width: 640px) {
+  .role-group-remote {
+    padding: 16px;
+  }
+
+  .role-group-local {
+    padding-top: 24px;
+  }
+
+  .role-pair {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 64px auto;
+  }
+
+  .role-bridge::before {
+    top: 0;
+    right: auto;
+    bottom: 2px;
+    left: 50%;
+    width: 3px;
+    height: auto;
+    margin: 0 0 0 -1.5px;
+    background: linear-gradient(180deg, var(--zone-student), var(--zone-cloud), var(--zone-teacher));
+  }
+
+  .role-bridge::after {
+    top: auto;
+    right: auto;
+    bottom: 0;
+    left: 50%;
+    border-top: 8px solid var(--zone-teacher);
+    border-right: 5px solid transparent;
+    border-bottom: 0;
+    border-left: 5px solid transparent;
+    transform: translateX(-50%);
+  }
+
+  .role-bridge-label {
+    top: 50%;
+    left: calc(50% + 28px);
+    transform: translateY(-50%);
+  }
+
+  /* Vuelve a ser una tarjeta en columna; stretch anula el centrado de la fila de pantallas medianas */
+  .role-card.zone-local {
+    display: flex;
+    align-items: stretch;
+  }
+
+  .role-card.zone-local .role-link {
+    margin-top: auto;
+    padding-top: 4px;
+  }
+}
+
+/* Celulares: la foto queda chica al lado del antetítulo y el título, y la bajada usa todo el ancho.
+   display: contents hace que los textos del hero pasen a ser celdas de la grilla */
+@media (max-width: 560px) {
   .landing {
-    padding: 24px 18px;
+    padding: 0 0 8px;
+  }
+
+  .landing-hero {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "eyebrow photo"
+      "title photo"
+      "lead lead";
+    column-gap: 16px;
+    padding-top: 12px;
+  }
+
+  .hero-text {
+    display: contents;
+  }
+
+  .hero-eyebrow {
+    grid-area: eyebrow;
+    align-self: end;
+  }
+
+  .landing h1 {
+    grid-area: title;
+    align-self: start;
+    font-size: 1.75rem;
+  }
+
+  .landing-lead {
+    grid-area: lead;
+    margin-top: 20px;
+    font-size: 1.05rem;
+  }
+
+  .landing-figure {
+    grid-area: photo;
+    width: 92px;
+    margin: 8px 6px 8px 0;
+  }
+
+  .landing-figure::before,
+  .landing-photo {
+    border-radius: 16px;
+  }
+
+  .roles {
+    margin-top: 40px;
+  }
+
+  /* Las 4 partes del mensaje no entran en una fila: se listan una debajo de otra, con la explicación al lado */
+  .packet-parts {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .packet-part {
+    flex-direction: row;
+    gap: 12px;
+  }
+
+  .packet-part code {
+    min-width: 4.5em;
+    text-align: center;
+  }
+
+  .packet-part dd {
+    max-width: none;
+    font-size: 0.85rem;
+    text-align: left;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .role-card {
     transition: none;
+  }
+
+  .role-card:hover {
+    transform: none;
+  }
+
+  /* Sin animación el paquete queda oculto (opacidad 0): las flechas ya indican el sentido */
+  .flow-link::before {
+    animation: none;
   }
 }

@@ -16,6 +16,22 @@ El Arduino puede tener uno de dos sketches, y las páginas se adaptan solas al q
 
 Todo el sistema se explica en una **infografía interactiva** ([`arquitectura.html`](arquitectura.html)). Es un diagrama navegable con recorrido guiado, temas a fondo, escenarios de falla y las piezas del robot en 3D a tamaño real.
 
+## Así se ve
+
+**El alumno (emisor).** A la izquierda, su cámara con los 21 puntos de cada mano. A la derecha, el brazo del profesor en vivo. Abajo, los datos que se envían: posición, dedos y gesto.
+
+![Página del emisor: la cámara del alumno con los puntos de las manos, el brazo robot en vivo y los datos de control](assets/capturas/emisor.webp)
+
+**El profesor (receptor).** Los alumnos conectados, con el botón para darles el control. También muestra los datos que llegan de quien lo tiene, el Arduino conectado por Web Serial y la cámara del brazo que ven los alumnos.
+
+![Página del receptor: la lista de alumnos, los datos recibidos, el Arduino conectado y la cámara del brazo](assets/capturas/receptor.webp)
+
+**La versión local.** Cámara y Arduino en la misma PC: la mano, los datos que se envían y el Arduino conectado, en una sola página.
+
+![Versión local: la cámara con los puntos de las manos, los datos de control y el Arduino conectado por Web Serial](assets/capturas/local.webp)
+
+Las capturas usan datos de ejemplo y se generan con un script ([más abajo](#capturas-y-vista-previa)).
+
 ## Páginas
 
 | Página | Para quién | Qué hace |
@@ -184,6 +200,7 @@ El sitio es estático: no necesita compilación. En el repositorio, ir a **Setti
   - paquetes animados que muestran por dónde viaja cada dato;
   - capas: datos de la mano, estado y control, video, energía, carga de la página y seguridad;
   - un panel con información desplegable para cada componente.
+- **Así se ve.** En el panel de cada componente que tiene pantalla, una captura de la página real con marcas numeradas que explican cada parte.
 - **Recorrido guiado.** 13 pasos, del gesto del alumno al motor del robot.
 - **Temas a fondo.** Una pestaña por tema:
   - **Hardware:** esquema de cables, simulador del pulso del servo, Uno o Mega;
@@ -208,6 +225,26 @@ El 3D usa [three.js](https://threejs.org) r187, que se descarga recién al abrir
 
 El guion con las decisiones de contenido y las fuentes consultadas está en [`docs/arquitectura-guion.md`](docs/arquitectura-guion.md).
 
+## Capturas y vista previa
+
+Las capturas del README, de la infografía y de las tarjetas de la portada no se sacan a mano: las genera un script. Si cambia una página, se vuelven a generar y las marcas numeradas de la infografía siguen en su lugar.
+
+```bash
+node tools/capturas.mjs --mano <foto de manos>
+node tools/vista-previa.mjs
+```
+
+- **[`tools/capturas.mjs`](tools/capturas.mjs)** arma una clase de prueba en navegadores sin ventana (Edge o Chrome), conectados al broker público en una sala al azar:
+  - el profesor tiene un Arduino simulado y la foto del brazo como cámara;
+  - tres alumnos, uno de ellos con la foto de manos como cámara y el control del robot;
+  - al final, la versión local.
+
+  Guarda los recortes en [`assets/capturas/`](assets/capturas/), y la posición de cada elemento señalado en `capturas.json`.
+- **La foto de manos tiene que traer dibujados los puntos de MediaPipe** (puntos rojos, como las imágenes de su documentación). En un navegador sin ventana, MediaPipe no detecta manos. Por eso, el script lee los puntos de la foto y se los entrega a la página en lugar de MediaPipe. Todo lo demás (X, Y, dedos, gesto, MQTT, el mensaje al Arduino) es el código real. Si en la foto aparece una persona, hace falta su permiso para publicarla.
+- **[`tools/vista-previa.mjs`](tools/vista-previa.mjs)** genera `assets/vista-previa.jpg` (1200 × 630). Es la imagen que muestran LinkedIn, WhatsApp y otras redes al compartir un enlace del sitio, y cada página la declara en sus etiquetas `og:image`. El diseño está en [`tools/vista-previa.html`](tools/vista-previa.html) y usa dos de las capturas: conviene correrlo después de `capturas.mjs`.
+
+Requisitos: Node 22 o posterior, Edge o Chrome instalado (o su ruta en la variable `NAVEGADOR`) e internet.
+
 ## Estructura
 
 ```
@@ -226,8 +263,13 @@ js/arquitectura.js            infografía: diagrama, zoom, capas, recorrido y es
 js/arquitectura-contenido.js  infografía: textos y datos (componentes, conexiones, pasos, escenarios)
 js/arquitectura-temas.js      infografía: temas a fondo, gráficos y simulador del mensaje
 js/arquitectura-3d.js         infografía: banco de trabajo 3D con three.js
+js/arquitectura-capturas.js   infografía: capturas «Así se ve» con marcas numeradas y visor ampliado
+assets/capturas/       capturas de las páginas con datos de ejemplo, y capturas.json con la posición de las marcas
+assets/vista-previa.jpg  imagen para la vista previa al compartir el enlace
 data/                  placas Arduino en JSON para el 3D, derivadas del CAD oficial (CC BY-SA 4.0)
 tools/eagle-a-json.mjs convierte un archivo .brd de Eagle en el JSON de data/
+tools/capturas.mjs     genera las capturas de assets/capturas/
+tools/vista-previa.mjs genera assets/vista-previa.jpg a partir de tools/vista-previa.html
 docs/                  guion de la infografía
 arduino/hand_leds/     sketch de LEDs: 1 a 3 LEDs según los dedos
 arduino/brazo_2_motores/  sketch del brazo: 2 servos, mano cerrada = izquierda, abierta = derecha

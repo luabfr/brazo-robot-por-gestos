@@ -39,6 +39,12 @@
         "video": [3.9, 23.3, 92.2, 71.3]
       }
     },
+    "portada-receptor": {
+      "file": "portada-receptor.webp",
+      "width": 806,
+      "height": 504,
+      "hotspots": {}
+    },
     "emisor": {
       "file": "emisor.webp",
       "width": 1440,
@@ -60,7 +66,7 @@
       "width": 1378,
       "height": 430,
       "hotspots": {
-        "estado": [39.9, 12.6, 56.2, 10.1],
+        "estado": [40.4, 12.6, 55.7, 10.1],
         "control": [23.8, 32.3, 19, 12.3],
         "envio": [44.5, 33.4, 17.2, 10.1]
       }
@@ -81,8 +87,26 @@
       "hotspots": {
         "video": [1.5, 2.5, 97.1, 95],
         "vivo": [2.9, 5, 22, 6.1],
-        "estado": [3.2, 86.6, 71.8, 7.9]
+        "estado": [3.2, 86.6, 69.4, 7.9]
       }
+    },
+    "portada-emisor": {
+      "file": "portada-emisor.webp",
+      "width": 806,
+      "height": 504,
+      "hotspots": {}
+    },
+    "local": {
+      "file": "local.webp",
+      "width": 1440,
+      "height": 900,
+      "hotspots": {}
+    },
+    "portada-local": {
+      "file": "portada-local.webp",
+      "width": 806,
+      "height": 504,
+      "hotspots": {}
     }
   }
 }

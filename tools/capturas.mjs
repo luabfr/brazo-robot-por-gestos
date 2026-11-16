@@ -2,12 +2,17 @@
 // verdad, con datos de ejemplo. Corre las páginas en navegadores headless (Edge o Chrome) conectados entre sí:
 // - "profesor": receptor.html, con la foto del brazo como cámara y un Arduino simulado por Web Serial
 //   (responde como arduino/brazo_2_motores);
-// - "ana": emisor.html, con la foto de unas manos como cámara (MediaPipe real) y el control del robot;
-// - "alumnos": beto y caro conectados, para que la lista del profesor tenga gente.
+// - "ana": emisor.html, con la foto de unas manos como cámara y el control del robot;
+// - "alumnos": beto y caro conectados, para que la lista del profesor tenga gente;
+// - "local": hand-tracking.html (la versión local), con la misma foto y otro Arduino simulado, al final y solo.
 // Todos usan el broker público de pruebas en una sala al azar. No se usan credenciales ni datos de nadie.
+// Las manos no las detecta MediaPipe sino los puntos que ya trae dibujados la foto (ver «MediaPipe de reemplazo»).
 //
 // Además de las imágenes, escribe assets/capturas/capturas.json con la ubicación de los elementos señalados
 // (en % de cada imagen): así las anotaciones numeradas de la infografía siguen en su lugar si cambia la página.
+// También genera las miniaturas de las tarjetas de la portada (portada-*.webp).
+//
+// Las funciones de navegador y servidor se exportan: tools/vista-previa.mjs las usa para la imagen de redes.
 //
 // Uso:   node tools/capturas.mjs --mano <foto de manos> [--brazo <foto del brazo>]
 // Requisitos: Node 22 o posterior, Edge o Chrome instalado (o su ruta en la variable NAVEGADOR) e internet
@@ -19,7 +24,7 @@ import { readFile, writeFile, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, extname, resolve, dirname, sep } from "node:path";
 import { tmpdir } from "node:os";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 var ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 var OUTPUT_DIR = join(ROOT, "assets", "capturas");
@@ -28,6 +33,7 @@ var VIEWPORT = { width: 1440, height: 900 };
 var SCALE = 2;              // Los recortes se guardan al doble de resolución: se ven nítidos en pantallas de alta densidad
 var CLIP_PADDING = 10;      // px de aire alrededor de cada recorte
 var WEBP_QUALITY = 80;
+var THUMB_SCALE = 0.28;     // Miniaturas de la portada: la pantalla de 1440 px queda en unos 800 px de ancho
 var BROWSER_CANDIDATES = [
   process.env.NAVEGADOR,
   "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
@@ -41,6 +47,7 @@ var BROWSER_CANDIDATES = [
 // ================= Capturas: qué se recorta y qué se señala =================
 // clip: elementos cuyo contorno (unidos) forma el recorte. hotspots: elementos a numerar en la infografía; un
 // selector marca el rectángulo del elemento, y { selector, at: [x, y] } un punto dentro de él (en 0..1).
+// full: la página entera. thumb: lo que entra en la pantalla, chico (miniatura de la portada).
 // Los textos de las anotaciones están en js/arquitectura-contenido.js (CAPTURES); acá solo va la geometría
 
 var SHOTS = [
@@ -74,26 +81,35 @@ var SHOTS = [
   {
     id: "emisor-brazo", page: "ana", clip: [".stream-area"],
     hotspots: { video: "#streamBox", vivo: "#streamLabel", estado: "#robotHud" }
-  }
+  },
+  { id: "local", page: "local", full: true },
+  { id: "portada-emisor", page: "ana", thumb: true },
+  { id: "portada-receptor", page: "profesor", thumb: true },
+  { id: "portada-local", page: "local", thumb: true }
 ];
 
-// ================= Arduino simulado (se inyecta en receptor.html) =================
+// ================= Arduino simulado (se inyecta en receptor.html y hand-tracking.html) =================
 // Reemplaza navigator.serial por un puerto que contesta como el sketch del brazo: "LISTO" al abrir y
-// "OK: BRAZO <estado> <ángulo> <ángulo>" cuando cambia algo. Mano abierta = derecha, cerrada = izquierda
+// "OK: BRAZO <estado> <ángulo> <ángulo>" cuando cambia algo. Mano abierta = derecha, cerrada = izquierda.
+// Con window.__brazoQuieto = true deja de avanzar y de informar: el script lo congela antes de las capturas,
+// para que todas muestren el mismo ángulo
 
 var FAKE_SERIAL = `(() => {
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
   let output = null;
   let pending = "";
-  let angle = 90;
+  // Arranca cerca de la izquierda y avanza de a poco: así sigue "moviéndose" (lejos del tope) al sacar las capturas,
+  // aunque el video del brazo tarde en llegar
+  let angle = 40;
   let lastReport = "";
   const send = (text) => { if (output) { output.enqueue(encoder.encode(text + "\\n")); } };
   const handle = (line) => {
+    if (window.__brazoQuieto) { return; }
     const match = /^X:\\d+ Y:\\d+ D:\\d G:(\\w+)$/.exec(line);
     let state = "QUIETO";
-    if (match && match[1] === "ABIERTA") { angle = Math.min(160, angle + 0.5); state = angle >= 160 ? "TOPE" : "DERECHA"; }
-    if (match && match[1] === "CERRADA") { angle = Math.max(20, angle - 0.5); state = angle <= 20 ? "TOPE" : "IZQUIERDA"; }
+    if (match && match[1] === "ABIERTA") { angle = Math.min(160, angle + 0.4); state = angle >= 160 ? "TOPE" : "DERECHA"; }
+    if (match && match[1] === "CERRADA") { angle = Math.max(20, angle - 0.4); state = angle <= 20 ? "TOPE" : "IZQUIERDA"; }
     const report = "OK: BRAZO " + state + " " + Math.round(angle) + " " + Math.round(angle);
     if (report !== lastReport) { lastReport = report; send(report); }
   };
@@ -314,7 +330,7 @@ function startServer(sources, virtual) {
         if (patch) {
           var text = body.toString("utf8");
           if (!text.includes(patch.find)) {
-            log("  aviso: " + path + " cambió y no se pudo forzar la CPU (revisar SERVER_PATCHES)");
+            log("  aviso: " + path + " cambió y no se pudo reemplazar MediaPipe (revisar SERVER_PATCHES)");
           }
           body = Buffer.from(text.replace(patch.find, patch.replace), "utf8");
         }
@@ -432,10 +448,15 @@ async function openPage(browser, url, options) {
   await page.send("Page.enable");
   await page.send("Runtime.enable");
   await page.send("Emulation.setDeviceMetricsOverride", { width: VIEWPORT.width, height: VIEWPORT.height, deviceScaleFactor: SCALE, mobile: false });
+  await page.send("Page.addScriptToEvaluateOnNewDocument", {
+    source: "addEventListener('DOMContentLoaded', () => { window.__capturasLista = true; }, { once: true });"
+  });
   if (options.script) {
     await page.send("Page.addScriptToEvaluateOnNewDocument", { source: options.script });
   }
-  var loaded = "location.href === " + JSON.stringify(url) + " && document.readyState === 'complete'";
+  // Lista = ya corrieron sus módulos (DOMContentLoaded), aunque falte alguna imagen. Ojo: "interactive" no alcanza,
+  // porque los módulos corren después; y una hoja de estilos que no llega (Google Fonts) los frena
+  var loaded = "location.href === " + JSON.stringify(url) + " && window.__capturasLista === true";
   try {
     // Con la PC cargada, a veces la primera orden de navegar no llega a la pestaña: se reintenta una vez
     for (var attempt = 1; attempt <= 2; attempt++) {
@@ -522,6 +543,8 @@ async function measure(page, shot) {
     "let clip;" +
     (shot.full
       ? "clip = { x: 0, y: 0, w: doc.scrollWidth, h: doc.scrollHeight };"
+      : shot.thumb
+      ? "clip = { x: 0, y: 0, w: innerWidth, h: Math.min(innerHeight, doc.scrollHeight) };"
       : "const boxes = " + JSON.stringify(shot.clip) + ".map((s) => { const el = document.querySelector(s); if (!el) { throw new Error('No está ' + s); } return box(el); });" +
         "const left = Math.max(0, Math.min(...boxes.map((b) => b.x)) - " + CLIP_PADDING + ");" +
         "const top = Math.max(0, Math.min(...boxes.map((b) => b.y)) - " + CLIP_PADDING + ");" +
@@ -546,8 +569,8 @@ async function measure(page, shot) {
 async function capture(page, shot) {
   var measured = await measure(page, shot);
   var clip = measured.clip;
-  // Las páginas completas se guardan a tamaño normal; los recortes, al doble
-  var scale = shot.full ? 1 / SCALE : 1;
+  // Las páginas completas se guardan a tamaño normal; los recortes, al doble; las miniaturas, chicas
+  var scale = shot.thumb ? THUMB_SCALE : shot.full ? 1 / SCALE : 1;
   var result = await page.send("Page.captureScreenshot", {
     format: "webp", quality: WEBP_QUALITY, captureBeyondViewport: true,
     clip: { x: clip.x, y: clip.y, width: clip.w, height: clip.h, scale: scale }
@@ -641,9 +664,10 @@ async function main() {
     }
     await connect(ana, room, "ana");
     // Un navegador por alumno, como en clase: dos pestañas en el mismo navegador dejan una en segundo plano.
-    // Sin VDO.Ninja: solo tienen que aparecer en la lista, y cada video extra es trabajo para la PC
+    // Sin VDO.Ninja ni Google Fonts: solo tienen que aparecer en la lista (no salen en las capturas). Cada video
+    // extra es trabajo para la PC, y si la hoja de la fuente tarda, frena los módulos de la página
     for (var alias of ["beto", "caro"]) {
-      var otherBrowser = await launchBrowser(browserPath, alias, null, ["--host-resolver-rules=MAP vdo.ninja ~NOTFOUND"]);
+      var otherBrowser = await launchBrowser(browserPath, alias, null, ["--host-resolver-rules=MAP vdo.ninja ~NOTFOUND, MAP fonts.googleapis.com ~NOTFOUND, MAP fonts.gstatic.com ~NOTFOUND"]);
       browsers.push(otherBrowser);
       var other = await openPage(otherBrowser, served.base + "/emisor.html", { label: alias });
       pages.push(other);
@@ -673,12 +697,42 @@ async function main() {
       note: "Capturas con datos de ejemplo, generadas con tools/capturas.mjs",
       images: {}
     };
-    var byName = { profesor: receptor, ana: ana };
-    for (var shot of SHOTS) {
-      var target = byName[shot.page];
-      await target.evaluate("window.scrollTo(0, 0)");
-      data.images[shot.id] = await capture(target, shot);
-    }
+    var captureFor = async function (name, target) {
+      // La fuente del sitio tiene que estar cargada antes de la foto; si no llega, se avisa y se captura igual
+      await target.waitFor("document.fonts.status === 'loaded'", "cargar la fuente", 20000).catch(function () {
+        log("  aviso: «" + target.label + "» sin la fuente del sitio; la captura usa la del sistema");
+      });
+      for (var shot of SHOTS.filter(function (item) { return item.page === name; })) {
+        await target.evaluate("window.scrollTo(0, 0)");
+        data.images[shot.id] = await capture(target, shot);
+      }
+    };
+    await receptor.evaluate("window.__brazoQuieto = true");
+    await sleep(1500);
+    await captureFor("profesor", receptor);
+    await captureFor("ana", ana);
+
+    // 6. Versión local, sola: los navegadores de la clase se cierran antes, para que no le quiten máquina
+    pages.forEach(function (page) {
+      page.close();
+    });
+    pages = [];
+    browsers.forEach(function (browser) {
+      browser.child.kill();
+    });
+    var localBrowser = await launchBrowser(browserPath, "local", join(work, "mano.y4m"));
+    browsers.push(localBrowser);
+    var local = await openPage(localBrowser, served.base + "/hand-tracking.html", { script: FAKE_SERIAL, label: "local" });
+    pages.push(local);
+    await local.click("#cameraButton");
+    await local.waitFor("Number(document.getElementById('handsValue').textContent) > 0", "detectar las manos en la versión local", 90000);
+    await local.evaluate("(async () => { if (!document.getElementById('portSelect').options.length) { document.getElementById('addPortButton').click(); await new Promise((r) => setTimeout(r, 500)); } })()");
+    await local.click("#connectButton");
+    await local.waitFor("!document.getElementById('armStatus').hidden", "mostrar el estado del brazo en la versión local");
+    await sleep(5000);
+    await local.evaluate("window.__brazoQuieto = true");
+    log("Versión local con la cámara y el Arduino simulado");
+    await captureFor("local", local);
     // Cada rectángulo [x, y, ancho, alto] en una sola línea: el archivo queda corto y fácil de revisar
     var json = JSON.stringify(data, null, 2).replace(/\[\s+([\d.,\s-]+?)\s+\]/g, function (match, numbers) {
       return "[" + numbers.split(/,\s*/).join(", ") + "]";
@@ -701,7 +755,12 @@ async function main() {
   }
 }
 
-main().catch(function (error) {
-  console.error("[capturas] No se pudo terminar: " + error.message);
-  process.exitCode = 1;
-});
+export { ROOT, sleep, findBrowser, startServer, launchBrowser, openPage };
+
+// Solo corre cuando se ejecuta este archivo (no cuando otro script importa sus funciones)
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  main().catch(function (error) {
+    console.error("[capturas] No se pudo terminar: " + error.message);
+    process.exitCode = 1;
+  });
+}

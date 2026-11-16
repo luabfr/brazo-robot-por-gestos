@@ -328,8 +328,9 @@ body.arch-body {
   line-height: 1.4;
 }
 
-/* La ayuda corta es la del celular */
-.arch-hint-short {
+/* La ayuda corta y las etiquetas cortas de los botones son las del celular */
+.arch-hint-short,
+.label-short {
   display: none;
 }
 
@@ -416,6 +417,16 @@ body.arch-body {
   margin-top: 18px;
   padding: 10px 0 0;
   font-size: 0.95rem;
+}
+
+/* En el panel de un componente, "Verlo en 3D" y "Para profundizar" van uno debajo del otro */
+.arch-panel-body > .arch-topic-link {
+  display: block;
+  text-align: left;
+}
+
+.arch-panel-body > .arch-bench-link + .arch-topic-link {
+  margin-top: 4px;
 }
 
 .arch-caption-link {
@@ -1164,6 +1175,734 @@ body.arch-body {
   outline-offset: 2px;
 }
 
+/* ---------- Escenarios de falla ---------- */
+
+/* Rojo de "falla": solo en las marcas de corte, siempre con la ✕ (no depende solo del color) */
+.arch-app {
+  --fail: #ff6b6b;
+  --fail-soft: #ff9b8f;
+}
+
+.arch-fail-start svg {
+  color: var(--fail-soft);
+}
+
+/* Momento del paso: "t = 3 s", "Al volver"… */
+.arch-tour-time {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgba(255, 107, 107, 0.14);
+  color: var(--fail-soft);
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.arch-tour-time:not([hidden]) + h2 {
+  margin-top: 6px;
+}
+
+/* Menú de escenarios dentro de la tarjeta */
+.arch-scenario-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  max-height: 46vh;
+  margin-top: 12px;
+  padding: 2px;
+  overflow-y: auto;
+  list-style: none;
+  overscroll-behavior: contain;
+}
+
+.arch-scenario-option,
+.scenario-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  height: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.arch-scenario-option strong,
+.scenario-card strong {
+  color: var(--text-strong);
+  font-size: 0.92rem;
+  font-weight: 650;
+}
+
+.arch-scenario-option:hover,
+.scenario-card:hover {
+  border-color: color-mix(in srgb, var(--fail-soft) 60%, transparent);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.arch-scenario-option:focus-visible,
+.scenario-card:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+.arch-tour-extra .arch-topic-link {
+  margin-top: 6px;
+  padding: 4px 0 0;
+}
+
+/* Enlace a un escenario desde el panel de un componente */
+.arch-scenario-link {
+  display: block;
+  margin-top: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--link);
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.arch-scenario-link:hover {
+  text-decoration: underline;
+}
+
+.arch-scenario-link:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+/* Línea cortada: roja, punteada y con una ✕ en el medio */
+.arch-edge-group.is-broken .arch-edge {
+  stroke: var(--fail);
+  stroke-dasharray: 3 7;
+}
+
+.arch-label.is-broken {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+
+.arch-break circle {
+  fill: #2a1013;
+  stroke: var(--fail);
+  stroke-width: 2;
+}
+
+.arch-break path {
+  fill: none;
+  stroke: var(--fail-soft);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+/* Componente caído: apagado, con borde rojo y una ✕ en la esquina */
+.arch-node-item.is-down .arch-node {
+  border-color: var(--fail);
+  box-shadow: 0 0 0 2px var(--fail);
+}
+
+.arch-node-item.is-down .arch-node-icon,
+.arch-node-item.is-down .arch-node-text {
+  opacity: 0.55;
+  filter: grayscale(1);
+}
+
+.arch-node-item.is-down::after {
+  content: "✕";
+  position: absolute;
+  top: -9px;
+  right: -9px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--fail);
+  color: #1a0b0d;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+/* Durante un escenario no viajan paquetes: con líneas cortadas, el flujo normal confundiría */
+.arch-world.is-scenario .arch-packet {
+  display: none;
+}
+
+/* Lista de escenarios en la pestaña Seguridad */
+.scenario-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+  list-style: none;
+}
+
+.scenario-card-link {
+  margin-top: 4px;
+  color: var(--link);
+  font-weight: 700;
+}
+
+/* ---------- Simulador del mensaje (tema "El mensaje") ---------- */
+
+.msg-builder {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.msg-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-strong);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.msg-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: #8fa3ff;
+}
+
+.msg-field,
+.msg-line {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 3ch;
+  align-items: center;
+  gap: 12px;
+}
+
+.msg-line {
+  grid-template-columns: 64px minmax(0, 1fr);
+  margin-top: 12px;
+}
+
+.msg-field-label {
+  color: var(--text-soft);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.msg-range {
+  width: 100%;
+  accent-color: #8fa3ff;
+}
+
+.msg-field-value {
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.msg-select {
+  grid-column: 2 / 4;
+  padding: 6px 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  background: #0e131e;
+  color: var(--text-strong);
+  font: inherit;
+}
+
+.msg-builder :disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.msg-text {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  background: #0b0e13;
+  color: #c5d0ff;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 1.05rem;
+}
+
+.msg-select:focus-visible,
+.msg-text:focus-visible,
+.msg-range:focus-visible,
+.msg-example:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+.msg-examples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.msg-examples-label {
+  margin-right: 2px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.msg-example {
+  padding: 4px 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-soft);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.msg-example:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.msg-results {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.msg-result {
+  padding: 10px 12px;
+  border: 1px solid var(--glass-border);
+  border-left-width: 4px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.msg-result.is-ok {
+  border-left-color: #4fcacc;
+}
+
+.msg-result.is-rejected {
+  border-left-color: var(--fail);
+}
+
+.msg-result-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 8px;
+  color: var(--text-strong);
+  font-size: 0.9rem;
+}
+
+.msg-badge {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.msg-result.is-ok .msg-badge {
+  color: #4fcacc;
+}
+
+.msg-result.is-rejected .msg-badge {
+  color: var(--fail-soft);
+}
+
+.msg-result-text {
+  margin-top: 4px;
+  color: var(--text-soft);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+/* ---------- Banco de trabajo 3D (js/arquitectura-3d.js) ---------- */
+
+.arch-bench-start svg {
+  color: #8fa3ff;
+}
+
+/* El diálogo ocupa toda la pantalla; el lienzo 3D va detrás de los paneles */
+.arch-bench {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: #07090d;
+  color: var(--text-soft);
+}
+
+.arch-bench::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.bench-canvas {
+  position: absolute;
+  inset: 0;
+  cursor: grab;
+}
+
+.bench-canvas:active {
+  cursor: grabbing;
+}
+
+.bench-canvas:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: -4px;
+}
+
+.bench-canvas canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.bench-status {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  max-width: min(440px, calc(100% - 32px));
+  padding: 14px 18px;
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  background: var(--glass-solid);
+  color: var(--text-strong);
+  text-align: center;
+  transform: translate(-50%, -50%);
+}
+
+.bench-status.is-error {
+  border-color: color-mix(in srgb, var(--fail) 60%, transparent);
+}
+
+.bench-panel {
+  position: absolute;
+  border: 1px solid var(--glass-border);
+  border-radius: 18px;
+  background: var(--glass);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(12px);
+}
+
+.bench-header {
+  top: 16px;
+  left: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  width: min(560px, calc(100% - 32px - 360px));
+  padding: 14px 14px 14px 20px;
+}
+
+.bench-eyebrow {
+  color: var(--link);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.bench-header h2:focus {
+  outline: none;
+}
+
+.bench-header h2 {
+  margin-top: 2px;
+  color: var(--text-strong);
+  font-size: 1.45rem;
+  line-height: 1.2;
+}
+
+.bench-lead {
+  margin-top: 6px;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.bench-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.bench-segmented {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+}
+
+.bench-segmented button,
+.bench-toggle,
+.bench-arm-buttons button {
+  padding: 6px 14px;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bench-segmented button {
+  border-color: transparent;
+  background: transparent;
+}
+
+.bench-segmented button[aria-pressed="true"],
+.bench-toggle[aria-pressed="true"],
+.bench-arm-buttons button[aria-pressed="true"] {
+  border-color: transparent;
+  background: var(--text-strong);
+  color: #0b0e13;
+}
+
+.bench-segmented button:hover:not([aria-pressed="true"]),
+.bench-toggle:hover:not([aria-pressed="true"]),
+.bench-arm-buttons button:hover:not([aria-pressed="true"]) {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.bench-segmented button:focus-visible,
+.bench-toggle:focus-visible,
+.bench-arm-buttons button:focus-visible,
+.bench-piece:focus-visible,
+.bench-link:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+/* Ficha de la pieza y lista: a la derecha en escritorio */
+.bench-info {
+  top: 16px;
+  right: 16px;
+  bottom: 16px;
+  width: 340px;
+  padding: 16px 18px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.bench-arm {
+  padding: 10px 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.bench-arm-title {
+  color: var(--text-soft);
+  font-size: 0.88rem;
+}
+
+.bench-arm-title output {
+  color: var(--text-strong);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.bench-arm-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.bench-arm-buttons button {
+  padding: 5px 10px;
+  font-size: 0.8rem;
+}
+
+.bench-piece-title {
+  margin-top: 16px;
+  color: var(--text-strong);
+  font-size: 1.15rem;
+  line-height: 1.25;
+}
+
+.bench-hint,
+.bench-note,
+.bench-source {
+  margin-top: 6px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.bench-note,
+.bench-source {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.bench-part {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--link);
+  border-radius: 8px;
+  background: rgba(79, 202, 204, 0.08);
+  font-size: 0.85rem;
+}
+
+.bench-part strong {
+  color: var(--text-strong);
+}
+
+.bench-facts {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.bench-facts div {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 10px;
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.bench-facts dt {
+  color: var(--text-muted);
+}
+
+.bench-facts dd {
+  color: var(--text-strong);
+}
+
+.bench-link {
+  display: inline-block;
+  margin-top: 8px;
+  color: var(--link);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.bench-pieces-label {
+  margin-top: 18px;
+  color: var(--text-strong);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.bench-pieces {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  list-style: none;
+}
+
+.bench-piece {
+  padding: 5px 11px;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-soft);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.bench-piece:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.bench-piece[aria-pressed="true"] {
+  border-color: var(--link);
+  color: var(--text-strong);
+}
+
+.bench-credits {
+  margin-top: 16px;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  line-height: 1.4;
+}
+
+/* Hasta que three.js termina de cargar, los controles quedan atenuados */
+.arch-bench:not(.is-ready) .bench-toolbar,
+.arch-bench:not(.is-ready) .bench-arm,
+.arch-bench:not(.is-ready) .bench-pieces {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* Llamada al banco 3D desde la pestaña Hardware y desde el panel de un componente */
+.bench-callout {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  margin-top: 4px;
+  padding: 14px 16px;
+  border: 1.5px solid transparent;
+  border-radius: 14px;
+  background:
+    linear-gradient(#111724, #111724) padding-box,
+    linear-gradient(90deg, #8fa3ff, #df8ff2, #4fcacc, #f7b04a) border-box;
+  color: var(--text-soft);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bench-callout svg {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  fill: none;
+  stroke: #8fa3ff;
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+}
+
+.bench-callout strong {
+  display: block;
+  color: var(--text-strong);
+  font-size: 1rem;
+}
+
+.bench-callout span {
+  font-size: 0.86rem;
+}
+
+.bench-callout:hover {
+  filter: brightness(1.1);
+}
+
+.bench-callout:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
 /* Zoom: arriba a la derecha (se corre a la izquierda cuando se abre el panel) */
 .arch-zoom {
   top: 16px;
@@ -1564,11 +2303,13 @@ body.arch-body {
   }
 
   .arch-lead,
-  .arch-hint-long {
+  .arch-hint-long,
+  .label-long {
     display: none;
   }
 
-  .arch-hint-short {
+  .arch-hint-short,
+  .label-short {
     display: inline;
   }
 
@@ -1719,6 +2460,67 @@ body.arch-body {
 
   .hw-scroll-hint {
     display: block;
+  }
+
+  .arch-scenario-list,
+  .scenario-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .arch-scenario-list {
+    max-height: 44vh;
+  }
+
+  .msg-field {
+    grid-template-columns: 52px minmax(0, 1fr) 3ch;
+    gap: 10px;
+  }
+
+  .msg-line {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  /* Banco 3D en el celular: encabezado compacto arriba y la ficha como hoja abajo */
+  .bench-header {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+    width: auto;
+    padding: 10px 8px 10px 14px;
+  }
+
+  .bench-header h2 {
+    font-size: 1.1rem;
+  }
+
+  .bench-lead {
+    display: none;
+  }
+
+  .bench-toolbar {
+    gap: 6px;
+    margin-top: 6px;
+  }
+
+  .bench-segmented button,
+  .bench-toggle {
+    padding: 5px 10px;
+    font-size: 0.8rem;
+  }
+
+  .bench-info {
+    top: auto;
+    right: 10px;
+    bottom: 10px;
+    left: 10px;
+    width: auto;
+    max-height: 38vh;
+    padding: 12px 14px;
+  }
+
+  .bench-piece-title {
+    margin-top: 12px;
   }
 
   .dot-tick.is-minor {

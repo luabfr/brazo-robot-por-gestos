@@ -12,6 +12,16 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400..700&display=swap" />
   <link rel="stylesheet" href="css/app.css" />
   <link rel="stylesheet" href="css/arquitectura.css" />
+  <!-- three.js para el banco 3D, con versión fija (r187). El importmap solo dice de dónde sale: js/arquitectura-3d.js
+       lo descarga recién cuando alguien abre el banco -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"
+      }
+    }
+  </script>
 </head>
 <body class="arch-body">
   <main class="arch-app" id="archApp">
@@ -37,11 +47,21 @@
       <div class="arch-header-row">
         <button type="button" class="arch-tour-start" id="archTourStart">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10-6.5z" /></svg>
-          Recorrido guiado
+          <span class="label-long">Recorrido guiado</span><span class="label-short">Recorrido</span>
         </button>
         <button type="button" class="arch-topics-start" id="archTopicsStart" aria-controls="archTopics">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h10" /></svg>
-          Temas a fondo
+          <span class="label-long">Temas a fondo</span><span class="label-short">Temas</span>
+        </button>
+        <!-- Escenarios de falla: abre la tarjeta de abajo con la lista para elegir -->
+        <button type="button" class="arch-topics-start arch-fail-start" id="archFailStart">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 3.9 2.4 17.6A2 2 0 0 0 4.1 20.6h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0ZM12 9v4M12 17h.01" /></svg>
+          <span class="label-long">Si algo falla</span><span class="label-short">Fallas</span>
+        </button>
+        <!-- Banco de trabajo 3D: las piezas a tamaño real (three.js se descarga al abrirlo) -->
+        <button type="button" class="arch-topics-start arch-bench-start" id="archBenchStart" aria-haspopup="dialog">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 3.5 7v10l8.5 4.5 8.5-4.5V7zM3.5 7 12 11.5 20.5 7M12 11.5v10" /></svg>
+          <span class="label-long">Piezas en 3D</span><span class="label-short">3D</span>
         </button>
         <p class="arch-hint">
           <span class="arch-hint-long">Arrastrá para moverte · rueda o pellizco para acercar · elegí un componente para ver sus detalles</span>
@@ -100,7 +120,8 @@
       <div class="arch-panel-body" id="archPanelBody"></div>
     </aside>
 
-    <!-- Recorrido guiado: reemplaza a la barra de capas mientras está activo -->
+    <!-- Recorrido guiado y escenarios de falla: la misma tarjeta, que reemplaza a la barra de capas mientras está activa.
+         En los escenarios suma el momento de cada paso (archTourTime) y el menú para elegir la falla (archScenarioList) -->
     <section class="arch-overlay arch-tour" id="archTour" aria-labelledby="archTourTitle" hidden>
       <div class="arch-tour-top">
         <p class="arch-tour-step" id="archTourStep"></p>
@@ -109,9 +130,12 @@
         </button>
       </div>
       <ol class="arch-tour-progress" id="archTourProgress" aria-hidden="true"></ol>
+      <p class="arch-tour-time" id="archTourTime" hidden></p>
       <h2 id="archTourTitle" tabindex="-1"></h2>
       <p class="arch-tour-text" id="archTourText" aria-live="polite"></p>
-      <div class="arch-tour-actions">
+      <ul class="arch-scenario-list" id="archScenarioList" hidden></ul>
+      <div class="arch-tour-extra" id="archTourExtra" hidden></div>
+      <div class="arch-tour-actions" id="archTourActions">
         <button type="button" class="arch-tour-button" id="archTourPrev">← Anterior</button>
         <button type="button" class="arch-tour-button is-primary" id="archTourNext">Siguiente →</button>
       </div>
@@ -128,6 +152,49 @@
       <div class="arch-topics-tabs" id="archTopicsTabs" role="tablist" aria-label="Temas"></div>
       <div class="arch-topics-body" id="archTopicsBody"></div>
     </section>
+
+    <!-- Banco de trabajo 3D: las piezas del robot a tamaño real (1 unidad = 1 mm). Lo arma js/arquitectura-3d.js -->
+    <dialog class="arch-bench" id="archBench" aria-labelledby="benchTitle" aria-describedby="benchLead">
+      <div class="bench-canvas" id="benchCanvas" tabindex="0"
+           aria-label="Vista 3D del banco de trabajo. Arrastrá para girar; con el foco acá, las flechas desplazan la vista."></div>
+      <p class="bench-status" id="benchStatus" role="status" hidden></p>
+
+      <header class="bench-panel bench-header">
+        <div class="bench-heading">
+          <p class="bench-eyebrow">Banco de trabajo 3D</p>
+          <!-- autofocus: al abrir, el foco va al título (no al lienzo, que mostraría un contorno en toda la pantalla) -->
+          <h2 id="benchTitle" tabindex="-1" autofocus>Las piezas, a tamaño real</h2>
+          <p class="bench-lead" id="benchLead">Todo a la misma escala: así se ve cuánto mide cada cosa al lado de las demás. Cada cuadrado de la mesa mide 1 cm. Arrastrá para girar y usá la rueda o pellizcá para acercar.</p>
+        </div>
+        <button type="button" class="arch-panel-close" id="benchClose" aria-label="Cerrar el banco 3D" title="Cerrar (Esc)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+        </button>
+        <div class="bench-toolbar" role="toolbar" aria-label="Opciones del banco">
+          <div class="bench-segmented" role="group" aria-label="Placa">
+            <button type="button" data-board="uno" aria-pressed="true">Uno R3</button>
+            <button type="button" data-board="mega" aria-pressed="false">Mega 2560</button>
+          </div>
+          <button type="button" class="bench-toggle" id="benchExplode" aria-pressed="false">Vista explotada</button>
+          <button type="button" class="bench-toggle" id="benchFit">Encuadrar</button>
+        </div>
+      </header>
+
+      <aside class="bench-panel bench-info" aria-labelledby="benchPieceTitle">
+        <section class="bench-arm" aria-label="Mover el brazo">
+          <p class="bench-arm-title">Brazo: <output id="benchArmAngle">90°</output> · <span id="benchArmState">quieto</span></p>
+          <div class="bench-arm-buttons">
+            <button type="button" data-direction="-1" aria-pressed="false">← Mano cerrada</button>
+            <button type="button" data-direction="0" aria-pressed="true">Quieto</button>
+            <button type="button" data-direction="1" aria-pressed="false">Mano abierta →</button>
+          </div>
+        </section>
+        <h3 id="benchPieceTitle" class="bench-piece-title"></h3>
+        <div class="bench-piece-body" id="benchPieceBody" aria-live="polite"></div>
+        <p class="bench-pieces-label">Piezas</p>
+        <ul class="bench-pieces" id="benchPieceList"></ul>
+        <p class="bench-credits">Placa: derivada del CAD oficial de Arduino (CC-BY-SA 4.0) · three.js r187 (MIT)</p>
+      </aside>
+    </dialog>
 
     <div class="arch-tooltip" id="archTooltip" role="tooltip" hidden></div>
 

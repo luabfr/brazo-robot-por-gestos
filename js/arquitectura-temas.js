@@ -4,11 +4,11 @@
 // y mqtt-link.js (rutas de los topics). Lo que es una estimación se muestra como tal.
 
 import { CONFIG } from "./config.js";
-import { OUTPUT_MAX, MAX_FINGERS, GESTURE_LABELS, NO_HAND_MESSAGE } from "./protocol.js";
+import { OUTPUT_MAX, MAX_FINGERS, GESTURE_LABELS, NO_HAND_MESSAGE, formatMessage, parseMessage } from "./protocol.js";
 import { buildTopics } from "./mqtt-link.js";
 import {
   REPO_URL, TOPICS, BOARD_ROWS, WIRES, MESSAGE_ROWS, MQTT_CONCEPTS, TOPIC_ROWS, ACL_ROWS,
-  SECURITY_ITEMS, WEB_ROWS, WEB_ITEMS
+  SECURITY_ITEMS, WEB_ROWS, WEB_ITEMS, SCENARIOS
 } from "./arquitectura-contenido.js";
 
 var SVG_NS = "http://www.w3.org/2000/svg";
@@ -40,6 +40,29 @@ var OVERHEAD_BYTES = 33;   // Encabezados de MQTT 5 (~5), WebSocket (6) y TLS 1.
 var JPEG_FRAME_KB = 12.5;  // Una foto JPEG de 320 × 240, aproximada
 var JPEG_FPS = 5;
 var QUOTA_MB = 1000;       // 1 GB por mes del plan gratuito de EMQX Serverless
+
+// Del sketch del brazo (MAX_LINE_LENGTH) y del de LEDs (pines 8, 9 y 10): se imitan en el simulador del mensaje
+var SKETCH_MAX_LINE = 48;
+var LED_COUNT = 3;
+// sscanf(line, "X:%d Y:%d D:%d G:%11s") del sketch, en forma de expresión regular. Es más permisivo que el
+// receptor: %d acepta signo y números grandes, un espacio del formato acepta cero o más espacios, y lo que sobra
+// al final se ignora. Por eso el receptor valida primero con el formato exacto
+var SKETCH_DATA_PATTERN = /^X:\s*[+-]?\d+\s*Y:\s*[+-]?\d+\s*D:\s*[+-]?\d+\s*G:\s*(\S{1,11})/;
+// Comandos manuales del sketch, para probar el montaje desde el Monitor Serie del IDE
+var SKETCH_MANUAL = {
+  IZQUIERDA: "Comando manual: los motores van a la izquierda.",
+  DERECHA: "Comando manual: los motores van a la derecha.",
+  QUIETO: "Comando manual: los motores se detienen.",
+  CENTRO: "Comando manual: los motores vuelven a 90°."
+};
+var MESSAGE_EXAMPLES = [
+  { text: "X:52 Y:31 D:2 G:V", label: "Válido" },
+  { text: "X:150 Y:31 D:2 G:V", label: "Fuera de rango" },
+  { text: "x:52 y:31 d:2 g:v", label: "Minúsculas" },
+  { text: "X:52 Y:31 D:2 G:BAILE", label: "Gesto inventado" },
+  { text: "X:52  Y:31 D:2 G:V", label: "Doble espacio" },
+  { text: NO_HAND_MESSAGE, label: "Sin mano" }
+];
 
 var panel = null;
 var tabsList = null;
@@ -74,6 +97,23 @@ function svgEl(name, attributes) {
 // Números con coma decimal, como se escriben en castellano
 function formatNumber(value, decimals) {
   return value.toLocaleString("es-AR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+// Completa los marcadores de tiempo de los escenarios de falla ({stale}, {will}…) con los valores de config.js
+export function fillTimes(text) {
+  var values = {
+    stale: CONFIG.handStaleMs / 1000,
+    heartbeat: CONFIG.heartbeatMs / 1000,
+    serial: CONFIG.serialKeepaliveMs / 1000,
+    keepalive: CONFIG.keepaliveSeconds,
+    will: CONFIG.keepaliveSeconds * 1.5
+  };
+  return String(text).replace(/\{(\w+)\}/g, function (match, key) {
+    if (!Object.prototype.hasOwnProperty.call(values, key)) {
+      return match; // Marcador desconocido: queda a la vista para detectarlo
+    }
+    return formatNumber(values[key], values[key] % 1 === 0 ? 0 : 1);
+  });
 }
 
 function section(title, className) {
@@ -407,9 +447,248 @@ function servoSimulator() {
   return figure;
 }
 
+// ================= El mensaje: simulador =================
+// El veredicto del receptor sale de parseMessage() y el mensaje armado de formatMessage(): es el código de
+// js/protocol.js, el mismo que corre en el emisor y el receptor. El motivo del rechazo y la respuesta del
+// Arduino se calculan acá (el sketch corre en la placa y no se puede importar)
+
+// Por qué parseMessage() rechazó una línea, revisando las reglas en el orden en que se leen
+function explainRejection(text) {
+  var line = String(text).trim();
+  if (line === "") {
+    return "Está vacío.";
+  }
+  if (parseMessage(line.toUpperCase())) {
+    return "Las letras van en mayúsculas.";
+  }
+  var parts = line.split(" ");
+  var names = ["X", "Y", "D", "G"];
+  if (parts.length !== 4) {
+    return parts.indexOf("") >= 0
+      ? "Hay espacios de más: las partes van separadas por un solo espacio."
+      : "Tiene que tener 4 partes separadas por un espacio (X, Y, D y G) o ser " + NO_HAND_MESSAGE + ".";
+  }
+  for (var i = 0; i < names.length; i++) {
+    if (parts[i].indexOf(names[i] + ":") !== 0) {
+      return "La parte " + (i + 1) + " tiene que empezar con «" + names[i] + ":» (el orden es X, Y, D, G).";
+    }
+  }
+  var values = parts.map(function (part) {
+    return part.slice(2);
+  });
+  for (var j = 0; j < 2; j++) {
+    if (!/^\d{1,3}$/.test(values[j])) {
+      return names[j] + " tiene que ser un número entero de 0 a " + OUTPUT_MAX + ", sin signo ni decimales.";
+    }
+    if (Number(values[j]) > OUTPUT_MAX) {
+      return names[j] + " está fuera de rango: va de 0 a " + OUTPUT_MAX + ".";
+    }
+  }
+  if (!/^\d$/.test(values[2]) || Number(values[2]) > MAX_FINGERS) {
+    return "D (los dedos) va de 0 a " + MAX_FINGERS + ".";
+  }
+  if (!Object.prototype.hasOwnProperty.call(GESTURE_LABELS, values[3])) {
+    return "El gesto «" + values[3] + "» no existe. Los válidos son " + Object.keys(GESTURE_LABELS).join(", ") + ".";
+  }
+  return "No respeta el formato exacto.";
+}
+
+function armAction(gesture) {
+  if (gesture === "CERRADA") {
+    return "Los dos motores giran de a poco a la izquierda, hasta el tope de " + ARM_MIN_ANGLE + "°.";
+  }
+  if (gesture === "ABIERTA") {
+    return "Los dos motores giran de a poco a la derecha, hasta el tope de " + ARM_MAX_ANGLE + "°.";
+  }
+  return "Los motores se quedan quietos donde están (solo CERRADA y ABIERTA los mueven).";
+}
+
+// Qué haría el sketch del brazo con una línea (imita readSerial() y handleLine())
+function sketchResponse(line) {
+  if (line.length > SKETCH_MAX_LINE) {
+    return { ok: false, text: "Responde «ERROR: linea demasiado larga, se descarta» (más de " + SKETCH_MAX_LINE + " caracteres)." };
+  }
+  if (line === "") {
+    return { ok: false, text: "Una línea vacía se ignora." };
+  }
+  if (line === NO_HAND_MESSAGE) {
+    return { ok: true, text: "Los motores se detienen." };
+  }
+  var match = SKETCH_DATA_PATTERN.exec(line);
+  if (match) {
+    return { ok: true, text: armAction(match[1]) };
+  }
+  if (Object.prototype.hasOwnProperty.call(SKETCH_MANUAL, line)) {
+    return { ok: true, text: SKETCH_MANUAL[line] };
+  }
+  return { ok: false, text: "Responde «ERROR: no entiendo» y no mueve nada." };
+}
+
+function resultRow(title) {
+  var row = el("div", "msg-result");
+  var heading = el("p", "msg-result-title");
+  var badge = el("span", "msg-badge");
+  heading.append(el("strong", "", title), badge);
+  var text = el("p", "msg-result-text");
+  row.append(heading, text);
+  return {
+    element: row,
+    set: function (isOk, label, detail) {
+      row.classList.toggle("is-ok", isOk);
+      row.classList.toggle("is-rejected", !isOk);
+      badge.textContent = (isOk ? "✓ " : "✕ ") + label; // Ícono y palabra: el estado no depende solo del color
+      text.textContent = detail;
+    }
+  };
+}
+
+function rangeField(id, label, max, value) {
+  var field = el("div", "msg-field");
+  var name = el("label", "msg-field-label", label);
+  name.htmlFor = id;
+  var input = el("input", "msg-range");
+  input.type = "range";
+  input.id = id;
+  input.min = "0";
+  input.max = String(max);
+  input.step = "1";
+  input.value = String(value);
+  var output = el("output", "msg-field-value", String(value));
+  output.htmlFor = id;
+  input.addEventListener("input", function () {
+    output.textContent = input.value;
+  });
+  field.append(name, input, output);
+  return { element: field, input: input };
+}
+
+function messageSimulator() {
+  var container = section("Probá el mensaje", "msg-sim");
+  container.appendChild(el("p", "",
+    "Armalo con los controles o escribilo a mano. Lo revisa parseMessage(), la misma función que usa el receptor."));
+
+  // Controles: arman la línea con formatMessage(), igual que el emisor
+  var builder = el("div", "msg-builder");
+  var handLabel = el("label", "msg-check");
+  var handInput = el("input");
+  handInput.type = "checkbox";
+  handInput.checked = true;
+  handLabel.append(handInput, document.createTextNode("Hay una mano frente a la cámara"));
+  var xField = rangeField("msgX", "X", OUTPUT_MAX, 52);
+  var yField = rangeField("msgY", "Y", OUTPUT_MAX, 31);
+  var fingersField = rangeField("msgD", "Dedos", MAX_FINGERS, 5);
+  var gestureField = el("div", "msg-field");
+  var gestureLabel = el("label", "msg-field-label", "Gesto");
+  gestureLabel.htmlFor = "msgG";
+  var gestureSelect = el("select", "msg-select");
+  gestureSelect.id = "msgG";
+  Object.keys(GESTURE_LABELS).forEach(function (code) {
+    var option = el("option", "", code + " · " + GESTURE_LABELS[code]);
+    option.value = code;
+    gestureSelect.appendChild(option);
+  });
+  gestureSelect.value = "ABIERTA"; // Arranca con un gesto que mueve el brazo
+  gestureField.append(gestureLabel, gestureSelect);
+  builder.append(handLabel, xField.element, yField.element, fingersField.element, gestureField);
+
+  // La línea que viaja: la escriben los controles, pero también se puede editar a mano
+  var lineField = el("div", "msg-line");
+  var lineLabel = el("label", "msg-field-label", "Mensaje");
+  lineLabel.htmlFor = "msgText";
+  var lineInput = el("input", "msg-text");
+  lineInput.id = "msgText";
+  lineInput.type = "text";
+  lineInput.maxLength = 120;
+  lineInput.spellcheck = false;
+  lineInput.autocomplete = "off";
+  lineInput.setAttribute("autocapitalize", "off");
+  lineField.append(lineLabel, lineInput);
+
+  var examples = el("div", "msg-examples");
+  examples.appendChild(el("span", "msg-examples-label", "Ejemplos:"));
+  MESSAGE_EXAMPLES.forEach(function (example) {
+    var button = el("button", "msg-example", example.label);
+    button.type = "button";
+    button.title = example.text;
+    button.addEventListener("click", function () {
+      lineInput.value = example.text;
+      evaluateLine();
+    });
+    examples.appendChild(button);
+  });
+
+  var results = el("div", "msg-results");
+  results.setAttribute("aria-live", "polite");
+  var receptorRow = resultRow("Receptor · parseMessage()");
+  var armRow = resultRow("Arduino · sketch del brazo");
+  var ledsRow = resultRow("Arduino · sketch de los LEDs");
+  results.append(receptorRow.element, armRow.element, ledsRow.element);
+
+  function evaluateLine() {
+    var text = lineInput.value;
+    var data = parseMessage(text);
+    if (data) {
+      // El receptor no reenvía el texto recibido: lo vuelve a armar con formatMessage() a partir de los datos
+      var forwarded = formatMessage(data);
+      receptorRow.set(true, "Lo acepta", data.hasHand
+        ? "X " + data.x + " · Y " + data.y + " · " + data.fingers + (data.fingers === 1 ? " dedo" : " dedos") +
+          " · " + GESTURE_LABELS[data.gesture] + ". Reenvía al Arduino: " + forwarded
+        : "No hay mano. Reenvía al Arduino: " + forwarded);
+      armRow.set(true, "Le llega", sketchResponse(forwarded).text);
+      var lit = data.hasHand ? Math.min(data.fingers, LED_COUNT) : 0;
+      ledsRow.set(true, "Le llega", lit === 0
+        ? "Apaga todos los LEDs."
+        : "Enciende " + lit + (lit === 1 ? " LED" : " LEDs") + (data.fingers > LED_COUNT ? " (hay " + LED_COUNT + ": con 4 o 5 dedos quedan los " + LED_COUNT + ")." : "."));
+    } else {
+      receptorRow.set(false, "Lo descarta", explainRejection(text) + " No se reenvía: queda anotado en el registro.");
+      var fallback = sketchResponse(text);
+      armRow.set(false, "No le llega", "Si igual llegara, el sketch lo vuelve a revisar: " + fallback.text);
+      ledsRow.set(false, "No le llega", "El receptor lo frenó antes del cable.");
+    }
+  }
+
+  function buildFromControls() {
+    var hasHand = handInput.checked;
+    [xField.input, yField.input, fingersField.input, gestureSelect].forEach(function (control) {
+      control.disabled = !hasHand;
+    });
+    lineInput.value = formatMessage(hasHand
+      ? { hasHand: true, x: Number(xField.input.value), y: Number(yField.input.value), fingers: Number(fingersField.input.value), gesture: gestureSelect.value }
+      : { hasHand: false });
+    evaluateLine();
+  }
+
+  [handInput, xField.input, yField.input, fingersField.input, gestureSelect].forEach(function (control) {
+    control.addEventListener("input", buildFromControls);
+  });
+  lineInput.addEventListener("input", evaluateLine);
+  buildFromControls();
+
+  container.append(builder, lineField, examples, results);
+  container.appendChild(el("p", "topic-chart-note",
+    "El veredicto del receptor es el código real (js/protocol.js). Lo que hace el Arduino se imita acá a partir de los sketches."));
+  return container;
+}
+
 // ================= Contenido de cada tema =================
 
 function buildHardware(container) {
+  // Puerta al banco 3D: las mismas piezas, a tamaño real
+  var callout = el("button", "bench-callout");
+  callout.type = "button";
+  callout.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 3.5 7v10l8.5 4.5 8.5-4.5V7zM3.5 7 12 11.5 20.5 7M12 11.5v10" /></svg>';
+  var calloutText = el("span");
+  calloutText.append(
+    el("strong", "", "Ver las piezas en 3D, a tamaño real"),
+    el("span", "", "La placa sale del CAD oficial de Arduino; el servo, de su ficha. Todo a la misma escala.")
+  );
+  callout.appendChild(calloutText);
+  callout.addEventListener("click", function () {
+    if (callbacks.onBench) {
+      callbacks.onBench(callout);
+    }
+  });
+  container.appendChild(callout);
   container.appendChild(wiringDiagram());
   container.appendChild(servoSimulator());
 
@@ -447,6 +726,7 @@ function buildMessage(container) {
     "Si no hay mano, el mensaje es " + NO_HAND_MESSAGE + ". Se manda como máximo " + Math.round(1000 / CONFIG.remoteSendIntervalMs) +
     " veces por segundo, y solo cuando algo cambia."));
   container.appendChild(anatomy);
+  container.appendChild(messageSimulator());
 
   var messages = section("Todos los mensajes del sistema");
   messages.appendChild(table(["Mensaje", "Quién lo manda", "Qué significa"], MESSAGE_ROWS, "Mensajes del protocolo"));
@@ -598,6 +878,30 @@ function buildSecurity(container) {
   figure.appendChild(el("p", "topic-chart-note", "Valores del código: config.js, js/hand-tracker.js y el sketch del brazo. Escala logarítmica: de 0,1 a 1 s ocupa lo mismo que de 1 a 10 s, para que se vean juntos tiempos muy distintos."));
   container.appendChild(figure);
 
+  // Escenarios de falla: cada uno se reproduce sobre el diagrama (lo maneja js/arquitectura.js)
+  var failures = section("Qué pasa si algo falla");
+  failures.appendChild(el("p", "", "Elegí una falla y mirala sobre el diagrama, paso a paso y con sus tiempos."));
+  var list = el("ul", "scenario-cards");
+  SCENARIOS.forEach(function (scenario) {
+    var button = el("button", "scenario-card");
+    button.type = "button";
+    button.append(
+      el("strong", "", scenario.title),
+      el("span", "scenario-card-summary", fillTimes(scenario.summary)),
+      el("span", "scenario-card-link", "Ver en el diagrama →")
+    );
+    button.addEventListener("click", function () {
+      if (callbacks.onScenario) {
+        callbacks.onScenario(scenario.id);
+      }
+    });
+    var item = el("li");
+    item.appendChild(button);
+    list.appendChild(item);
+  });
+  failures.appendChild(list);
+  container.appendChild(failures);
+
   var layers = section("Capas de protección");
   layers.appendChild(termList(SECURITY_ITEMS));
   container.appendChild(layers);
@@ -731,7 +1035,9 @@ export function isTopicsOpen() {
   return !panel.hidden;
 }
 
-// options.tooltip: { showAt, showBelow, move, hide } (el tooltip del diagrama). options.onOpen: se llama al abrir
+// options.tooltip: { showAt, showBelow, move, hide } (el tooltip del diagrama). options.onOpen: se llama al abrir.
+// options.onScenario(id): reproducir un escenario de falla sobre el diagrama.
+// options.onBench(opener): abrir el banco 3D
 export function initTopics(options) {
   panel = document.getElementById("archTopics");
   tabsList = document.getElementById("archTopicsTabs");

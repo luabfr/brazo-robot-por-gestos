@@ -420,6 +420,116 @@ export var PACKET_CHAIN = [
 ];
 export var PACKET_STREAMS = ["v-webrtc", "v-visor", "p-servos"];
 
+// ================= Escenarios de falla (§9 del guion) =================
+// Se reproducen sobre el diagrama, paso a paso. Cada paso: momento (time), lo que se destaca (nodes, edges)
+// y lo que está caído (down: componentes; broken: líneas cortadas).
+// Los tiempos que salen de config.js van como marcadores y los completa fillTimes() de js/arquitectura-temas.js:
+// {stale} receptor sin datos · {heartbeat} latido del emisor · {serial} latido al Arduino ·
+// {keepalive} keepalive de MQTT · {will} 1,5 × keepalive. Los 2 s del Arduino salen del sketch (no se pueden importar).
+// about: componentes cuyo panel de detalle ofrece este escenario. topic: tema a fondo relacionado (opcional)
+export var SCENARIOS = [
+  {
+    id: "cierra-pestana", title: "El alumno cierra la pestaña", about: ["emisor"],
+    summary: "Avisa que se va; si el aviso no llega, el broker avisa por él.",
+    steps: [
+      { time: "0 s", title: "Se cierra la pestaña", nodes: ["emisor", "broker"], edges: ["e-mensaje"], down: ["emisor"],
+        text: "Antes de cerrarse, el emisor intenta publicar «offline» en su estado. Casi siempre alcanza a salir." },
+      { time: "≈ 0 s", title: "El profesor le quita el control", nodes: ["broker", "receptor"], edges: ["e-reparto"], down: ["emisor"],
+        text: "El receptor recibe el «offline» del alumno que tenía el control: se lo quita y publica que nadie controla." },
+      { time: "≈ 0 s", title: "El robot se queda quieto", nodes: ["receptor", "webserial", "arduino"], edges: ["e-validado", "e-usb"], down: ["emisor"],
+        text: "El receptor manda SIN_MANO al Arduino y los motores se detienen donde están." },
+      { time: "≈ {will} s", title: "Plan B: el Last Will", nodes: ["emisor", "broker", "receptor"], edges: ["e-reparto"], down: ["emisor"], broken: ["e-mensaje"],
+        text: "Si el aviso no alcanzó a salir, el broker nota el silencio (1,5 × keepalive de {keepalive} s) y publica «offline» en nombre del alumno. Antes, a los {stale} s sin datos, el receptor ya había frenado el robot." }
+    ]
+  },
+  {
+    id: "pierde-internet", title: "El alumno pierde internet", about: ["emisor", "broker"],
+    summary: "Nadie avisa: el receptor frena el robot y después el broker da al alumno por caído.",
+    steps: [
+      { time: "0 s", title: "Se corta la conexión", nodes: ["emisor", "broker"], edges: [], broken: ["e-mensaje", "s-emisor"],
+        text: "Los mensajes dejan de salir y nadie avisa: el broker todavía cree que el alumno está conectado." },
+      { time: "{stale} s", title: "El receptor frena el robot", nodes: ["receptor", "webserial", "arduino"], edges: ["e-validado", "e-usb"], broken: ["e-mensaje", "s-emisor"],
+        text: "Con la mano quieta, el emisor repite su estado cada {heartbeat} s. Si pasan {stale} s sin nada, el receptor manda SIN_MANO: el robot no sigue con el último gesto." },
+      { time: "≈ {will} s", title: "El broker lo da por caído", nodes: ["emisor", "broker", "receptor"], edges: ["e-reparto"], broken: ["e-mensaje", "s-emisor"],
+        text: "Sin señales de vida durante 1,5 × keepalive, el broker publica el Last Will del alumno («offline») y el profesor le quita el control." }
+    ]
+  },
+  {
+    id: "segundo-plano", title: "La pestaña del alumno queda oculta", about: ["emisor", "mediapipe"],
+    summary: "El último gesto no queda «congelado»: SIN_MANO al instante.",
+    steps: [
+      { time: "0 s", title: "El alumno cambia de pestaña", nodes: ["webcam", "mediapipe", "emisor"], edges: [], broken: ["e-video-local", "e-puntos"],
+        text: "El navegador frena las pestañas ocultas y la detección se detiene. Sin protección, el robot seguiría con el último gesto." },
+      { time: "0 s", title: "SIN_MANO al instante", nodes: ["emisor", "broker", "receptor", "webserial", "arduino"], edges: ["e-mensaje", "e-reparto", "e-validado", "e-usb"], broken: ["e-video-local", "e-puntos"],
+        text: "Al ocultarse, el emisor publica SIN_MANO y deja de mandar el latido. El robot se queda quieto." },
+      { time: "Al volver", title: "Todo se reanuda solo", nodes: ["webcam", "mediapipe", "emisor"], edges: ["e-video-local", "e-puntos", "e-mensaje"],
+        text: "Cuando la pestaña vuelve a verse, la detección sigue sola y el emisor manda el estado actual de la mano." }
+    ]
+  },
+  {
+    id: "profesor-sin-broker", title: "El profesor pierde el broker", about: ["receptor", "broker"],
+    summary: "Sin datos confiables, el robot pasa a SIN_MANO; los alumnos se enteran por el Last Will.",
+    steps: [
+      { time: "0 s", title: "Se corta el broker", nodes: ["broker", "receptor"], edges: [], broken: ["e-reparto", "s-receptor"],
+        text: "La PC del profesor deja de recibir mensajes de los alumnos: ya no hay datos en los que confiar." },
+      { time: "0 s", title: "El robot pasa a SIN_MANO", nodes: ["receptor", "webserial", "arduino"], edges: ["e-validado", "e-usb"], broken: ["e-reparto", "s-receptor"],
+        text: "Apenas pierde la conexión, el receptor manda SIN_MANO al Arduino y lo mantiene así hasta reconectarse." },
+      { time: "≈ {will} s", title: "Los alumnos se enteran", nodes: ["broker", "emisor", "visor"], edges: ["s-emisor"], broken: ["e-reparto", "s-receptor"],
+        text: "El broker publica el Last Will del receptor («offline»): los alumnos ven «Profesor desconectado» y el video del brazo se oculta." },
+      { time: "Al reconectar", title: "Vuelve a empezar", nodes: ["receptor", "broker", "emisor"], edges: ["s-receptor", "s-emisor"],
+        text: "El receptor publica «online» y reafirma quién tiene el control; el alumno reenvía el estado actual de su mano." }
+    ]
+  },
+  {
+    id: "usb", title: "Se desconecta el USB", about: ["webserial", "arduino"],
+    summary: "El Arduino se apaga y nadie ve un estado viejo del brazo.",
+    steps: [
+      { time: "0 s", title: "Se suelta el cable", nodes: ["webserial", "arduino", "servos"], edges: [], down: ["arduino"], broken: ["e-usb", "s-arduino", "e-pwm"],
+        text: "En este montaje el Arduino se alimenta por el USB: sin cable se apaga y los servos dejan de recibir pulsos." },
+      { time: "≈ 0 s", title: "La página lo detecta", nodes: ["webserial", "receptor"], edges: ["s-serial"], down: ["arduino"], broken: ["e-usb", "s-arduino", "e-pwm"],
+        text: "Web Serial avisa que el puerto se cerró y el receptor lo muestra en pantalla." },
+      { time: "≈ 0 s", title: "Nadie ve un estado viejo", nodes: ["receptor", "broker", "emisor"], edges: ["s-receptor", "s-emisor"], down: ["arduino"], broken: ["e-usb", "s-arduino", "e-pwm"],
+        text: "El receptor borra en el broker los estados retenidos del brazo y de los LEDs: los alumnos dejan de ver lo último que informó el Arduino." }
+    ]
+  },
+  {
+    id: "receptor-colgado", title: "La página del profesor se cuelga", about: ["receptor", "arduino"],
+    summary: "El Arduino no espera órdenes para siempre: frena solo a los 2 s.",
+    steps: [
+      { time: "0 s", title: "El receptor deja de responder", nodes: ["receptor", "webserial"], edges: [], down: ["receptor"], broken: ["e-validado"],
+        text: "Con la mano quieta, el receptor repite el estado al Arduino cada {serial} s. Si la página se cuelga, el cable queda en silencio." },
+      { time: "2 s", title: "El Arduino frena solo", nodes: ["arduino", "servos"], edges: ["e-pwm"], down: ["receptor"], broken: ["e-validado", "e-usb"],
+        text: "Si el brazo se estaba moviendo y pasan 2 s sin mensajes, el sketch detiene los motores y responde «AVISO: sin mensajes de la web»." },
+      { time: "≈ {will} s", title: "Los alumnos se enteran", nodes: ["receptor", "broker", "emisor"], edges: ["s-emisor"], down: ["receptor"], broken: ["e-validado", "e-usb", "s-receptor"],
+        text: "Una página colgada tampoco le responde al broker: al notar el silencio, publica su Last Will y los alumnos ven «Profesor desconectado»." }
+    ]
+  },
+  {
+    id: "mensaje-invalido", title: "Llega un mensaje inválido", about: ["receptor", "arduino"], topic: "mensaje",
+    summary: "Doble validación: el receptor lo descarta y el sketch vuelve a revisar.",
+    steps: [
+      { time: "0 s", title: "Llega texto raro", nodes: ["emisor", "broker", "receptor"], edges: ["e-mensaje", "e-reparto"],
+        text: "Alguien publica en el topic de la mano algo que no es un mensaje válido, por ejemplo «X:999 Y:0 D:9 G:BAILE»." },
+      { time: "0 s", title: "El receptor lo descarta", nodes: ["receptor"], edges: ["e-reparto"], broken: ["e-validado"],
+        text: "parseMessage() exige el formato exacto, los rangos y un gesto conocido. Si algo no coincide, lo anota en el registro y no lo reenvía: nunca llega al cable." },
+      { time: "Por las dudas", title: "El Arduino vuelve a revisar", nodes: ["arduino"], edges: ["e-usb"],
+        text: "Aunque algo se colara, el sketch descarta las líneas de más de 48 caracteres y las que no entiende, y responde ERROR." }
+    ]
+  },
+  {
+    id: "auto-control", title: "Un alumno intenta darse el control", about: ["broker", "emisor"], topic: "mqtt",
+    summary: "El broker no lo permite: solo el profesor publica en control.",
+    steps: [
+      { time: "0 s", title: "Publica en «control»", nodes: ["emisor", "broker"], edges: ["e-mensaje"],
+        text: "Un alumno curioso intenta publicar su propio alias en el topic control para quedarse con el robot." },
+      { time: "0 s", title: "El broker lo rechaza", nodes: ["emisor", "broker"], edges: [], broken: ["e-mensaje"],
+        text: "El usuario «emisor» no tiene permiso para publicar en control, así que el broker no acepta el mensaje. Solo «receptor» puede." },
+      { time: "Después", title: "Nada cambia", nodes: ["receptor", "broker", "emisor"], edges: ["s-receptor", "s-emisor"],
+        text: "El control sigue en manos de quien eligió el profesor, que es el único que puede darlo o quitarlo." }
+    ]
+  }
+];
+
 // ================= Temas a fondo (§7 del guion) =================
 // Textos de cada pestaña. Los números que dependen del código (tiempos, intervalos, tope del video, topics)
 // no van acá: los calcula js/arquitectura-temas.js importando config.js, protocol.js y mqtt-link.js

@@ -14,7 +14,8 @@
 //
 // Las funciones de navegador y servidor se exportan: tools/vista-previa.mjs las usa para la imagen de redes.
 //
-// Uso:   node tools/capturas.mjs --mano <foto de manos> [--brazo <foto del brazo>]
+// Uso:   node tools/capturas.mjs [--mano <foto de manos>] [--brazo <foto del brazo>]
+//        Sin opciones usa tools/fotos/manos.jpg (con permiso de quien aparece) y assets/brazo-robot.webp.
 // Requisitos: Node 22 o posterior, Edge o Chrome instalado (o su ruta en la variable NAVEGADOR) e internet
 // (broker público, MediaPipe y VDO.Ninja).
 
@@ -270,16 +271,13 @@ function log(text) {
 
 function readArgs() {
   var args = process.argv.slice(2);
-  var options = { brazo: join(ROOT, "assets", "brazo-robot.webp"), mano: null };
+  var options = { brazo: join(ROOT, "assets", "brazo-robot.webp"), mano: join(ROOT, "tools", "fotos", "manos.jpg") };
   for (var i = 0; i < args.length; i += 2) {
     var key = args[i].replace(/^--/, "");
     if (!(key in options) || args[i + 1] === undefined) {
-      throw new Error("Opción desconocida o sin valor: " + args[i] + ". Uso: node tools/capturas.mjs --mano <foto> [--brazo <foto>]");
+      throw new Error("Opción desconocida o sin valor: " + args[i] + ". Uso: node tools/capturas.mjs [--mano <foto>] [--brazo <foto>]");
     }
     options[key] = resolve(args[i + 1]);
-  }
-  if (!options.mano) {
-    throw new Error("Falta --mano <foto>: una foto de manos abiertas frente a la cámara (con permiso de quien aparece).");
   }
   [options.mano, options.brazo].forEach(function (file) {
     if (!existsSync(file)) {

@@ -230,7 +230,7 @@ El guion con las decisiones de contenido y las fuentes consultadas está en [`do
 Las capturas del README, de la infografía y de las tarjetas de la portada no se sacan a mano: las genera un script. Si cambia una página, se vuelven a generar y las marcas numeradas de la infografía siguen en su lugar.
 
 ```bash
-node tools/capturas.mjs --mano <foto de manos>
+node tools/capturas.mjs
 node tools/vista-previa.mjs
 ```
 
@@ -240,7 +240,9 @@ node tools/vista-previa.mjs
   - al final, la versión local.
 
   Guarda los recortes en [`assets/capturas/`](assets/capturas/), y la posición de cada elemento señalado en `capturas.json`.
-- **La foto de manos tiene que traer dibujados los puntos de MediaPipe** (puntos rojos, como las imágenes de su documentación). En un navegador sin ventana, MediaPipe no detecta manos. Por eso, el script lee los puntos de la foto y se los entrega a la página en lugar de MediaPipe. Todo lo demás (X, Y, dedos, gesto, MQTT, el mensaje al Arduino) es el código real. Si en la foto aparece una persona, hace falta su permiso para publicarla.
+- **La foto de manos** es [`tools/fotos/manos.jpg`](tools/fotos/manos.jpg). Se publica con permiso de la persona que aparece y es solo para las capturas de este proyecto. Para usar otra foto: `--mano <foto>` (y `--brazo <foto>` para la del brazo).
+  - **Tiene que traer dibujados los puntos de MediaPipe** (puntos rojos, como las imágenes de su documentación). En un navegador sin ventana, MediaPipe no detecta manos. Por eso, el script lee los puntos de la foto y se los entrega a la página en lugar de MediaPipe. Todo lo demás (X, Y, dedos, gesto, MQTT, el mensaje al Arduino) es el código real.
+  - Si en la foto aparece una persona, hace falta su permiso para publicarla.
 - **[`tools/vista-previa.mjs`](tools/vista-previa.mjs)** genera `assets/vista-previa.jpg` (1200 × 630). Es la imagen que muestran LinkedIn, WhatsApp y otras redes al compartir un enlace del sitio, y cada página la declara en sus etiquetas `og:image`. El diseño está en [`tools/vista-previa.html`](tools/vista-previa.html) y usa dos de las capturas: conviene correrlo después de `capturas.mjs`.
 
 Requisitos: Node 22 o posterior, Edge o Chrome instalado (o su ruta en la variable `NAVEGADOR`) e internet.
@@ -269,6 +271,7 @@ assets/vista-previa.jpg  imagen para la vista previa al compartir el enlace
 data/                  placas Arduino en JSON para el 3D, derivadas del CAD oficial (CC BY-SA 4.0)
 tools/eagle-a-json.mjs convierte un archivo .brd de Eagle en el JSON de data/
 tools/capturas.mjs     genera las capturas de assets/capturas/
+tools/fotos/manos.jpg  foto de manos que usa capturas.mjs como cámara del alumno (con permiso de quien aparece)
 tools/vista-previa.mjs genera assets/vista-previa.jpg a partir de tools/vista-previa.html
 docs/                  guion de la infografía
 arduino/hand_leds/     sketch de LEDs: 1 a 3 LEDs según los dedos

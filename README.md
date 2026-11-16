@@ -14,6 +14,8 @@ El Arduino puede tener uno de dos sketches, y las páginas se adaptan solas al q
 - **LEDs:** enciende 1, 2 o 3 LEDs según la cantidad de dedos.
 - **Brazo robot de 2 motores:** con la mano cerrada los dos motores se mueven a la izquierda; con la mano abierta, a la derecha.
 
+Todo el sistema se explica en una **infografía interactiva** ([`arquitectura.html`](arquitectura.html)). Es un diagrama navegable con recorrido guiado, temas a fondo, escenarios de falla y las piezas del robot en 3D a tamaño real.
+
 ## Páginas
 
 | Página | Para quién | Qué hace |
@@ -22,8 +24,11 @@ El Arduino puede tener uno de dos sketches, y las páginas se adaptan solas al q
 | [`emisor.html`](emisor.html) | Alumnos | Detecta la mano con la webcam, publica los datos cuando el profesor le da el control y muestra el brazo en vivo. |
 | [`receptor.html`](receptor.html) | Profesor | Lista a los alumnos conectados, elige quién controla el robot, reenvía sus datos al Arduino y transmite la cámara del brazo. |
 | [`hand-tracking.html`](hand-tracking.html) | Pruebas | Versión local: cámara y Arduino en la misma PC, sin internet de por medio. |
+| [`arquitectura.html`](arquitectura.html) | Todos | Infografía interactiva: cómo funciona por dentro, del gesto del alumno al motor del robot. |
 
-El receptor y la versión local necesitan **Chrome o Edge de escritorio** (Web Serial no está en otros navegadores). Todas las páginas tienen que abrirse desde `https://` o `http://localhost`, porque la cámara y Web Serial solo funcionan en orígenes seguros.
+El receptor y la versión local necesitan **Chrome o Edge de escritorio** (Web Serial no está en otros navegadores). Todas las páginas tienen que abrirse desde `https://` o `http://localhost`:
+- la cámara y Web Serial solo funcionan en orígenes seguros;
+- desde `file://` (abriendo el archivo con doble clic), el navegador bloquea los módulos de JavaScript.
 
 ## Cómo funciona
 
@@ -87,7 +92,10 @@ El profesor enciende la cámara del brazo en el receptor y cada alumno la ve a l
 - **"Hombre muerto" en dos niveles.** Las páginas repiten el estado actual aunque la mano esté quieta. El emisor lo repite cada 1 s y el receptor se lo repite al Arduino cada 0,4 s.
   - Si el alumno con el control deja de enviar durante 3 s, el receptor detiene el robot.
   - Si el Arduino del brazo deja de recibir mensajes durante 2 s, frena los motores por su cuenta.
+  - Los tiempos de las páginas están en [`js/config.js`](js/config.js) (`heartbeatMs`, `serialKeepaliveMs`, `handStaleMs`); el del Arduino, en el sketch.
 - **Dejar visible la pestaña del receptor.** El navegador frena los temporizadores de las pestañas ocultas: el latido hacia el Arduino baja a 1 por segundo y queda menos margen antes del frenado.
+
+Cada una de estas fallas se puede ver paso a paso en la infografía, en **Si algo falla**.
 
 ## Puesta en marcha
 
@@ -116,7 +124,7 @@ El profesor enciende la cámara del brazo en el receptor y cada alumno la ve a l
    | `receptor` | Publicar | `robotica/+/video` | Permitir |
    | `receptor` | Publicar y suscribirse | `#` | Denegar |
 
-4. En [`js/config.js`](js/config.js), reemplazar `<EMQX_HOST>` por la dirección (*Address*) del deployment. Queda así: `wss://<EMQX_HOST>:8084/mqtt`.
+4. En [`js/config.js`](js/config.js), poner en `brokerUrl` la dirección (*Address*) del deployment, con el puerto WebSocket seguro y la ruta `/mqtt`. Queda así: `wss://<EMQX_HOST>:8084/mqtt`. La dirección no es un secreto (queda visible en la página publicada); las credenciales nunca van en este archivo.
 
 **Límites del plan gratuito a tener en cuenta:**
 - 10 publicaciones por segundo por cliente. El emisor envía como máximo 5.
@@ -143,6 +151,7 @@ Hay dos sketches. Los dos usan el mismo mensaje, así que las páginas no cambia
 - **Conexión:**
   - La señal de cada servo va a los pines 5 y 6.
   - Los servos se alimentan con una **fuente externa de 5 a 6 V**, con el GND unido al del Arduino. El USB no alcanza para dos servos en movimiento y el Arduino se reinicia.
+  - En el curso se usa una fuente de PC (ATX) reciclada: su salida de 5 V alimenta los servos, y el cable verde (PS_ON#) va unido a GND con un puente para que arranque sin una PC. No hay que abrir la fuente: adentro hay tensión de red.
 - **Ajustes en el sketch:**
   - Topes de cada motor: `MIN_ANGLE` / `MAX_ANGLE`. Conviene empezar con un rango chico.
   - Posición de reposo: `HOME_ANGLE`.
@@ -166,18 +175,60 @@ Para probar sin cuenta de EMQX, en **Servidor** (al final de la fila de conexió
 
 El sitio es estático: no necesita compilación. En el repositorio, ir a **Settings → Pages → Deploy from a branch → `main` / raíz**.
 
+## Infografía: cómo funciona por dentro
+
+[`arquitectura.html`](arquitectura.html) explica el proyecto completo sin que haga falta leer el código. Está pensada para alumnos que nunca vieron el montaje en persona.
+
+- **Diagrama navegable.** Todo el sistema en un lienzo a pantalla completa:
+  - zoom y desplazamiento con mouse, pellizco o teclado;
+  - paquetes animados que muestran por dónde viaja cada dato;
+  - capas: datos de la mano, estado y control, video, energía, carga de la página y seguridad;
+  - un panel con información desplegable para cada componente.
+- **Recorrido guiado.** 13 pasos, del gesto del alumno al motor del robot.
+- **Temas a fondo.** Una pestaña por tema:
+  - **Hardware:** esquema de cables, simulador del pulso del servo, Uno o Mega;
+  - **El mensaje:** simulador que arma la línea con `formatMessage()` y la valida con `parseMessage()`, el mismo código del receptor;
+  - **MQTT:** topics y permisos;
+  - **Video:** cómo viaja por WebRTC;
+  - **Seguridad:** los tiempos de cada protección;
+  - **La web:** de qué está hecho el sitio.
+- **Si algo falla.** 8 escenarios que se reproducen sobre el diagrama, con sus tiempos: el alumno pierde internet, se desconecta el USB, la página del profesor se cuelga, etc.
+- **Piezas en 3D.** Un banco de trabajo con la placa (Uno o Mega), los servos SG90, el brazo, la fuente ATX y los cables, a escala 1:1. Tiene vista explotada, la ficha técnica de cada pieza y un brazo que se mueve como el sketch.
+
+Los números que muestra la infografía (tiempos, intervalos, topics, formato del mensaje) salen del código: `config.js`, `protocol.js` y `mqtt-link.js`. Si cambian ahí, cambian en la página.
+
+### De dónde salen las medidas del 3D
+
+- **Placas:** del CAD oficial de Arduino, en formato Eagle (A000066 y A000067). [`tools/eagle-a-json.mjs`](tools/eagle-a-json.mjs) extrae el contorno, los agujeros y la posición de cada componente a [`data/`](data/). Para regenerarlos, seguir los pasos de [`data/LICENCIA-CAD.md`](data/LICENCIA-CAD.md).
+- **Servo SG90:** cotas del dibujo de TowerPro.
+- **Fuente ATX:** formato estándar, 150 × 86 × 140 mm.
+- **Lo que no se pudo verificar** figura como «aproximado» en la ficha de cada pieza: las alturas de los componentes de la placa, el ventilador y el conector de la fuente y las piezas de plástico del brazo.
+
+El 3D usa [three.js](https://threejs.org) r187, que se descarga recién al abrir el banco.
+
+El guion con las decisiones de contenido y las fuentes consultadas está en [`docs/arquitectura-guion.md`](docs/arquitectura-guion.md).
+
 ## Estructura
 
 ```
-index.html, emisor.html, receptor.html, hand-tracking.html   páginas
+index.html, emisor.html, receptor.html, hand-tracking.html   páginas del proyecto
+arquitectura.html      infografía interactiva
 css/app.css            estilos compartidos (dos columnas en escritorio, una en celulares)
+css/arquitectura.css   estilos de la infografía
 js/hand-tracker.js     cámara, MediaPipe, gestos y datos de control
 js/serial-link.js      conexión con el Arduino por Web Serial
 js/mqtt-link.js        conexión con el broker (MQTT.js sobre wss)
 js/video-link.js       video en vivo del brazo con VDO.Ninja (links, ID y clave al azar)
 js/protocol.js         formato y validación de los mensajes
 js/logger.js           registro de eventos en pantalla
-js/config.js           dirección del broker y parámetros (sin credenciales)
+js/config.js           dirección del broker y parámetros, incluidos los tiempos de seguridad (sin credenciales)
+js/arquitectura.js            infografía: diagrama, zoom, capas, recorrido y escenarios de falla
+js/arquitectura-contenido.js  infografía: textos y datos (componentes, conexiones, pasos, escenarios)
+js/arquitectura-temas.js      infografía: temas a fondo, gráficos y simulador del mensaje
+js/arquitectura-3d.js         infografía: banco de trabajo 3D con three.js
+data/                  placas Arduino en JSON para el 3D, derivadas del CAD oficial (CC BY-SA 4.0)
+tools/eagle-a-json.mjs convierte un archivo .brd de Eagle en el JSON de data/
+docs/                  guion de la infografía
 arduino/hand_leds/     sketch de LEDs: 1 a 3 LEDs según los dedos
 arduino/brazo_2_motores/  sketch del brazo: 2 servos, mano cerrada = izquierda, abierta = derecha
 arduino/led_13/        sketch de la primera clase: LED del pin 13 con ENCENDER / APAGAR desde el Monitor Serie
@@ -185,9 +236,15 @@ arduino/led_13/        sketch de la primera clase: LED del pin 13 con ENCENDER /
 
 ## Tecnologías
 
-[MediaPipe Hand Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker) · [MQTT.js](https://github.com/mqttjs/MQTT.js) · [EMQX Cloud](https://www.emqx.com/en/cloud) · [Web Serial API](https://developer.mozilla.org/docs/Web/API/Web_Serial_API) · [VDO.Ninja](https://vdo.ninja) · Arduino. Sin frameworks ni compilación: HTML, CSS y JavaScript.
+[MediaPipe Hand Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker) · [MQTT.js](https://github.com/mqttjs/MQTT.js) · [EMQX Cloud](https://www.emqx.com/en/cloud) · [Web Serial API](https://developer.mozilla.org/docs/Web/API/Web_Serial_API) · [VDO.Ninja](https://vdo.ninja) · [three.js](https://threejs.org) · Arduino. Sin frameworks ni compilación: HTML, CSS y JavaScript.
+
+## Licencias de terceros
+
+- Los datos de las placas ([`data/placa-*.json`](data/)) son una obra derivada del CAD oficial de Arduino y se comparten bajo la misma licencia, [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/deed.es). El detalle está en [`data/LICENCIA-CAD.md`](data/LICENCIA-CAD.md).
+- three.js se usa desde su CDN, con licencia MIT.
 
 ## Próximos pasos
 
 - Control proporcional del brazo: X/Y → base y hombro, pinza → garra.
 - Medir la demora entre países con un ping de ida y vuelta.
+- Banco 3D: sumar un display que muestre los datos recibidos y potenciómetros.

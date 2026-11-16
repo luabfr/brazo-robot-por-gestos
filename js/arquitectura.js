@@ -4,12 +4,18 @@
 // - Navegación: arrastrar para moverse, rueda o pellizco para acercar, botones y teclado (+, −, 0 y flechas).
 // - Detalle: tooltip al pasar sobre una tarjeta o una línea; panel con información desplegable al elegir una tarjeta.
 // - Capas: resaltan un recorrido (datos, estado, video, energía, carga de la página o seguridad).
+// - Recorrido guiado y escenarios de falla: una tarjeta abajo que avanza paso a paso y encuadra cada tramo.
+//   En los escenarios, las líneas cortadas y los componentes caídos llevan una marca.
 
 import {
   REPO_URL, ZONES, ICONS, NODES, EDGES, LAYERS, LAYOUTS, LINE_KINDS, TOUR, PACKET_CHAIN, PACKET_STREAMS,
-  TOPICS, NODE_TOPIC, LAYER_TOPIC
+  TOPICS, NODE_TOPIC, LAYER_TOPIC, SCENARIOS
 } from "./arquitectura-contenido.js";
-import { initTopics, openTopic, closeTopics, isTopicsOpen } from "./arquitectura-temas.js";
+import { initTopics, openTopic, closeTopics, isTopicsOpen, fillTimes } from "./arquitectura-temas.js";
+import { openBench, isBenchOpen } from "./arquitectura-3d.js";
+
+// Componentes del diagrama que tienen su pieza en el banco 3D
+var NODE_BENCH = { arduino: "placa", servos: "servo", brazo: "brazo", fuente: "fuente" };
 
 var SVG_NS = "http://www.w3.org/2000/svg";
 var XLINK_NS = "http://www.w3.org/1999/xlink";
@@ -76,6 +82,12 @@ var tourTitle = document.getElementById("archTourTitle");
 var tourText = document.getElementById("archTourText");
 var tourPrev = document.getElementById("archTourPrev");
 var tourNext = document.getElementById("archTourNext");
+var tourTime = document.getElementById("archTourTime");
+var tourActions = document.getElementById("archTourActions");
+var tourExtra = document.getElementById("archTourExtra");
+var tourClose = document.getElementById("archTourClose");
+var scenarioList = document.getElementById("archScenarioList");
+var failStart = document.getElementById("archFailStart");
 var reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
 var zoneById = {};
@@ -107,7 +119,10 @@ var pinch = null;                 // Pellizco en curso
 var suppressClick = false;        // Un arrastre no tiene que abrir el componente donde terminó
 var svgRoot = null;               // SVG del dibujo actual (controla la animación de los paquetes)
 var isAnimationPaused = false;
-var tourIndex = -1;               // Paso del recorrido guiado (-1 = sin recorrido)
+var tourIndex = -1;               // Paso del recorrido o del escenario (-1 = ninguno)
+var activeScenario = null;        // Escenario de falla en curso (null = recorrido guiado o nada)
+var isScenarioMenu = false;       // La tarjeta muestra la lista de escenarios
+var cardOpener = null;            // Botón que abrió la tarjeta: recibe el foco al cerrarla
 
 // ================= Utilidades =================
 
@@ -540,14 +555,26 @@ function clampPosition(x, y, k) {
   };
 }
 
-// Zona de la pantalla que no tapan los paneles flotantes: ahí se encuadra y se centra
-function freeArea(includePanel) {
+// Espacio que ocupa abajo la barra de capas. Mientras la tarjeta del recorrido está abierta la barra se oculta
+// y no se puede medir: se usa la última medida (si no, el encuadre del 100 % quedaría diminuto)
+var layersBarInset = VIEW_MARGIN;
+
+// Zona de la pantalla que no tapan los paneles flotantes: ahí se encuadra y se centra.
+// ignoreCard: calcula como si la tarjeta del recorrido no estuviera (para el encuadre del 100 %)
+function freeArea(includePanel, ignoreCard) {
   var width = viewport.clientWidth;
   var height = viewport.clientHeight;
   var top = Math.max(VIEW_MARGIN, header.getBoundingClientRect().bottom + 12);
-  // Abajo está la barra de capas o, durante el recorrido, la tarjeta del paso
-  var bottomElement = tourIndex >= 0 ? tourCard : bottomBar;
-  var bottom = Math.max(VIEW_MARGIN, height - bottomElement.getBoundingClientRect().top + 12);
+  // Abajo está la barra de capas o, con el recorrido o un escenario, la tarjeta
+  var bottom;
+  if (!ignoreCard && !tourCard.hidden) {
+    bottom = Math.max(VIEW_MARGIN, height - tourCard.getBoundingClientRect().top + 12);
+  } else {
+    if (bottomBar.offsetParent !== null) {
+      layersBarInset = Math.max(VIEW_MARGIN, height - bottomBar.getBoundingClientRect().top + 12);
+    }
+    bottom = layersBarInset;
+  }
   var right = VIEW_MARGIN;
   if (includePanel && !panel.hidden) {
     var panelRect = panel.getBoundingClientRect();
@@ -586,12 +613,13 @@ function moveTo(x, y, k, animate) {
 
 // Encuadre completo. En el celular el diagrama es alto y angosto: se ajusta al ancho y se recorre hacia abajo
 function fitView(animate) {
-  var area = freeArea(false);
+  // El 100 % es siempre el encuadre con la barra de capas: no cambia al abrir la tarjeta del recorrido
+  var area = freeArea(false, true);
   fitScale = layoutName === "narrow"
     ? area.width / layout.width
     : Math.min(area.width / layout.width, area.height / layout.height);
 
-  var current = panel.hidden ? area : freeArea(true);
+  var current = panel.hidden ? area : freeArea(true, true);
   var k = layoutName === "narrow" ? fitScale : Math.min(fitScale, current.width / layout.width, current.height / layout.height);
   var x = current.left + (current.width - layout.width * k) / 2;
   var y = layoutName === "narrow" ? current.top : current.top + (current.height - layout.height * k) / 2;
@@ -814,14 +842,63 @@ function handleHover(event) {
 
 // ================= Resaltado: componente elegido o capa activa =================
 
+// Pasos de la tarjeta activa: los del escenario de falla o los del recorrido guiado
+function currentSteps() {
+  return activeScenario ? activeScenario.steps : TOUR;
+}
+
+// Marcas de falla del paso actual: líneas cortadas (con una ✕ en el medio) y componentes caídos
+function applyFailureMarks(step) {
+  world.querySelectorAll(".arch-break").forEach(function (mark) {
+    mark.remove();
+  });
+  Object.keys(edgeGroups).forEach(function (id) {
+    edgeGroups[id].classList.remove("is-broken");
+    if (edgeLabels[id]) {
+      edgeLabels[id].classList.remove("is-broken");
+    }
+  });
+  Object.keys(nodeItems).forEach(function (id) {
+    nodeItems[id].classList.remove("is-down");
+  });
+  world.classList.toggle("is-scenario", Boolean(step));
+  if (!step) {
+    return;
+  }
+  (step.broken || []).forEach(function (id) {
+    var group = edgeGroups[id];
+    var path = svgRoot.querySelector("#arch-path-" + id);
+    if (!group || !path) {
+      return;
+    }
+    group.classList.add("is-broken");
+    if (edgeLabels[id]) {
+      edgeLabels[id].classList.add("is-broken"); // El dato de esa línea ya no pasa: su texto se tacha
+    }
+    var middle = path.getPointAtLength(path.getTotalLength() / 2);
+    var mark = svgElement("g", { class: "arch-break", transform: "translate(" + middle.x + " " + middle.y + ")" });
+    mark.append(
+      svgElement("circle", { r: 10 }),
+      svgElement("path", { d: "M-4 -4 L4 4 M4 -4 L-4 4" })
+    );
+    group.appendChild(mark);
+  });
+  (step.down || []).forEach(function (id) {
+    if (nodeItems[id]) {
+      nodeItems[id].classList.add("is-down");
+    }
+  });
+}
+
 function applyHighlight() {
   var activeNodes = null;
   var activeEdges = null;
+  var step = tourIndex >= 0 ? currentSteps()[tourIndex] : null;
 
-  if (tourIndex >= 0) {
-    // Paso del recorrido guiado: sus componentes y conexiones
-    activeNodes = new Set(TOUR[tourIndex].nodes);
-    activeEdges = new Set(TOUR[tourIndex].edges);
+  if (step) {
+    // Paso del recorrido o del escenario: sus componentes y conexiones, incluidos los caídos y los cortes
+    activeNodes = new Set(step.nodes.concat(step.down || []));
+    activeEdges = new Set(step.edges.concat(step.broken || []));
   } else if (selectedId) {
     // El componente elegido, sus conexiones y sus vecinos
     activeNodes = new Set([selectedId]);
@@ -867,6 +944,7 @@ function applyHighlight() {
       edgeLabels[id].classList.toggle("is-active", isActive);
     }
   });
+  applyFailureMarks(activeScenario ? step : null);
 }
 
 // ================= Capas =================
@@ -1006,11 +1084,35 @@ function fillPanel(node) {
     panelBody.appendChild(detailsSection("Datos clave", bulletList(details.facts), true));
   }
   panelBody.appendChild(detailsSection("Conexiones", connectionsContent(node.id), false));
-  if (details.failure) {
-    panelBody.appendChild(detailsSection("Si algo falla", createElement("p", "", details.failure), false));
+  // "Si algo falla": el texto del componente y los escenarios que lo involucran, para verlos en el diagrama
+  var scenarios = SCENARIOS.filter(function (scenario) {
+    return scenario.about.indexOf(node.id) >= 0;
+  });
+  if (details.failure || scenarios.length) {
+    var failure = createElement("div");
+    if (details.failure) {
+      failure.appendChild(createElement("p", "", details.failure));
+    }
+    scenarios.forEach(function (scenario) {
+      var button = createElement("button", "arch-scenario-link", "Verlo en el diagrama: " + scenario.title + " →");
+      button.type = "button";
+      button.addEventListener("click", function () {
+        startScenario(scenario.id, button);
+      });
+      failure.appendChild(button);
+    });
+    panelBody.appendChild(detailsSection("Si algo falla", failure, false));
   }
   if ((details.files && details.files.length) || (details.links && details.links.length)) {
     panelBody.appendChild(detailsSection("Archivos y enlaces", linksContent(details), false));
+  }
+  if (NODE_BENCH[node.id]) {
+    var benchButton = createElement("button", "arch-topic-link arch-bench-link", "Verlo en 3D, a tamaño real →");
+    benchButton.type = "button";
+    benchButton.addEventListener("click", function () {
+      openBench({ piece: NODE_BENCH[node.id], opener: benchButton });
+    });
+    panelBody.appendChild(benchButton);
   }
   if (NODE_TOPIC[node.id]) {
     panelBody.appendChild(topicLink(NODE_TOPIC[node.id], "Para profundizar: "));
@@ -1068,60 +1170,188 @@ function frameNodes(ids) {
   moveTo(area.left + area.width / 2 - centerX * k, area.top + area.height / 2 - centerY * k, k, true);
 }
 
-function buildTourProgress() {
-  TOUR.forEach(function () {
+// Una barrita por paso de la secuencia activa (13 en el recorrido, 3 o 4 en cada escenario)
+function buildTourProgress(count) {
+  tourProgress.textContent = "";
+  for (var i = 0; i < count; i++) {
     tourProgress.appendChild(createElement("li"));
+  }
+}
+
+// Componentes a encuadrar en un paso: los suyos, los caídos y las dos puntas de cada línea cortada
+// (así se ven a la vez la causa de la falla y la reacción)
+function stepFrameIds(step) {
+  var ids = step.nodes.concat(step.down || []);
+  (step.broken || []).forEach(function (edgeId) {
+    ids.push(edgeById[edgeId].from, edgeById[edgeId].to);
   });
+  return ids;
+}
+
+// Momento del paso: "0 s" y "≈ 15 s" se leen como "t = …"; "Al volver" o "Después" quedan como están
+function stepTime(time) {
+  var text = fillTimes(time);
+  return /^[≈\d]/.test(text) ? "t = " + text : text;
+}
+
+// Muestra u oculta las partes de la tarjeta según el modo: pasos (recorrido o escenario) o menú de escenarios
+function setCardMode(mode) {
+  var isMenu = mode === "menu";
+  tourProgress.hidden = isMenu;
+  tourActions.hidden = isMenu;
+  scenarioList.hidden = !isMenu;
+  tourTime.hidden = mode !== "scenario";
+  tourExtra.hidden = true;
+  tourExtra.textContent = "";
+  var closeLabel = mode === "tour" ? "Salir del recorrido" : "Cerrar los escenarios";
+  tourClose.setAttribute("aria-label", closeLabel);
+  tourClose.title = closeLabel + " (Esc)";
+}
+
+function openCard(opener) {
+  if (!panel.hidden) {
+    closePanel(false);
+  }
+  if (isTopicsOpen()) {
+    closeTopics();
+  }
+  if (opener) {
+    cardOpener = opener;
+  }
+  tourCard.hidden = false;
+  app.classList.add("is-touring");
 }
 
 function showTourStep(index, moveFocus) {
   tourIndex = index;
-  var step = TOUR[index];
-  tourStep.textContent = "Paso " + (index + 1) + " de " + TOUR.length;
+  var steps = currentSteps();
+  var step = steps[index];
+  var isLast = index === steps.length - 1;
+  if (activeScenario) {
+    tourStep.textContent = activeScenario.title + " · " + (index + 1) + " de " + steps.length;
+    tourTime.textContent = stepTime(step.time);
+    tourText.textContent = fillTimes(step.text);
+    tourNext.textContent = isLast ? "Otros escenarios" : "Siguiente →";
+    // Al final del escenario, el tema a fondo relacionado (si tiene)
+    if (isLast && activeScenario.topic) {
+      tourExtra.appendChild(topicLink(activeScenario.topic, "Más en Temas a fondo: "));
+      tourExtra.hidden = false;
+    } else {
+      tourExtra.hidden = true;
+      tourExtra.textContent = "";
+    }
+  } else {
+    tourStep.textContent = "Paso " + (index + 1) + " de " + steps.length;
+    tourText.textContent = step.text;
+    tourNext.textContent = isLast ? "Terminar" : "Siguiente →";
+  }
   tourTitle.textContent = step.title;
-  tourText.textContent = step.text;
   tourPrev.disabled = index === 0;
-  tourNext.textContent = index === TOUR.length - 1 ? "Terminar" : "Siguiente →";
   Array.prototype.forEach.call(tourProgress.children, function (item, itemIndex) {
     item.classList.toggle("is-done", itemIndex < index);
     item.classList.toggle("is-current", itemIndex === index);
   });
   hideTooltip();
   applyHighlight();
-  frameNodes(step.nodes);
+  frameNodes(stepFrameIds(step));
   if (moveFocus) {
     tourTitle.focus({ preventScroll: true });
   }
 }
 
 function startTour() {
-  if (!panel.hidden) {
-    closePanel(false);
+  activeScenario = null;
+  isScenarioMenu = false;
+  openCard(tourStart);
+  setCardMode("tour");
+  buildTourProgress(TOUR.length);
+  updateBottomInset();
+  showTourStep(0, true);
+}
+
+// Lista de escenarios dentro de la tarjeta (se arma una sola vez)
+function buildScenarioList() {
+  SCENARIOS.forEach(function (scenario) {
+    var button = createElement("button", "arch-scenario-option");
+    button.type = "button";
+    button.append(
+      createElement("strong", "", scenario.title),
+      createElement("span", "", fillTimes(scenario.summary))
+    );
+    button.addEventListener("click", function () {
+      startScenario(scenario.id);
+    });
+    var item = createElement("li");
+    item.appendChild(button);
+    scenarioList.appendChild(item);
+  });
+}
+
+function showScenarioMenu(opener) {
+  openCard(opener);
+  tourIndex = -1;
+  activeScenario = null;
+  isScenarioMenu = true;
+  setCardMode("menu");
+  tourStep.textContent = "Si algo falla";
+  tourTitle.textContent = "¿Qué querés que falle?";
+  tourText.textContent = "Elegí una falla y mirá cómo reacciona cada parte del sistema, con sus tiempos.";
+  hideTooltip();
+  applyHighlight();
+  updateBottomInset();
+  fitView(true);
+  tourTitle.focus({ preventScroll: true });
+}
+
+function startScenario(id, opener) {
+  var scenario = SCENARIOS.find(function (item) {
+    return item.id === id;
+  });
+  if (!scenario) {
+    return;
   }
-  tourCard.hidden = false;
-  app.classList.add("is-touring");
+  openCard(opener);
+  activeScenario = scenario;
+  isScenarioMenu = false;
+  setCardMode("scenario");
+  buildTourProgress(scenario.steps.length);
   updateBottomInset();
   showTourStep(0, true);
 }
 
 function endTour(returnFocus) {
-  if (tourIndex < 0) {
+  if (tourIndex < 0 && !isScenarioMenu) {
     return;
   }
+  var wasScenario = Boolean(activeScenario) || isScenarioMenu;
   tourIndex = -1;
+  activeScenario = null;
+  isScenarioMenu = false;
   tourCard.hidden = true;
   app.classList.remove("is-touring");
   updateBottomInset();
   applyHighlight();
   fitView(true);
   if (returnFocus) {
-    tourStart.focus({ preventScroll: true });
+    // Vuelve al botón que la abrió; si ya no existe (estaba en un panel cerrado), al botón del encabezado
+    var target = cardOpener && document.contains(cardOpener) && cardOpener.offsetParent !== null
+      ? cardOpener
+      : wasScenario ? failStart : tourStart;
+    target.focus({ preventScroll: true });
   }
+  cardOpener = null;
 }
 
 function nextTourStep() {
-  if (tourIndex === TOUR.length - 1) {
-    endTour(true);
+  if (tourIndex < 0) {
+    return;
+  }
+  if (tourIndex === currentSteps().length - 1) {
+    if (activeScenario) {
+      showScenarioMenu(null);
+    } else {
+      endTour(true);
+    }
   } else {
     showTourStep(tourIndex + 1, false);
   }
@@ -1212,6 +1442,10 @@ function updateLayout(animate) {
     render(name);
   }
   fitView(animate);
+  // Con un paso en pantalla (recorrido o escenario), vuelve a encuadrar sus componentes
+  if (tourIndex >= 0) {
+    frameNodes(stepFrameIds(currentSteps()[tourIndex]));
+  }
 }
 
 viewport.addEventListener("pointerdown", handlePointerDown);
@@ -1280,9 +1514,12 @@ animationButton.addEventListener("click", function () {
 animationButton.hidden = reducedMotion.matches;
 
 tourStart.addEventListener("click", startTour);
+failStart.addEventListener("click", function () {
+  showScenarioMenu(failStart);
+});
 tourNext.addEventListener("click", nextTourStep);
 tourPrev.addEventListener("click", previousTourStep);
-document.getElementById("archTourClose").addEventListener("click", function () {
+tourClose.addEventListener("click", function () {
   endTour(true);
 });
 // Dentro de la tarjeta del recorrido, las flechas cambian de paso
@@ -1297,11 +1534,12 @@ tourCard.addEventListener("keydown", function (event) {
 });
 
 document.addEventListener("keydown", function (event) {
-  if (event.key === "Escape") {
+  // Con el banco 3D abierto, Escape lo cierra el propio diálogo y no toca nada de abajo
+  if (event.key === "Escape" && !isBenchOpen()) {
     hideTooltip();
     if (isTopicsOpen()) {
       closeTopics();
-    } else if (tourIndex >= 0) {
+    } else if (tourIndex >= 0 || isScenarioMenu) {
       endTour(true);
     } else if (!panel.hidden) {
       closePanel(true);
@@ -1322,7 +1560,7 @@ window.addEventListener("resize", function () {
 buildLegend();
 buildLayers();
 buildConnectionsList();
-buildTourProgress();
+buildScenarioList();
 
 // Temas a fondo: comparten el tooltip del diagrama. Al abrirse se cierran el detalle y el recorrido
 initTopics({
@@ -1343,7 +1581,18 @@ initTopics({
     if (!panel.hidden) {
       closePanel(false);
     }
+  },
+  // Desde la pestaña Seguridad: el panel de temas se cierra y el escenario se reproduce sobre el diagrama
+  onScenario: function (id) {
+    startScenario(id, null);
+  },
+  // Desde la pestaña Hardware: el banco 3D se abre encima (el panel de temas queda abierto debajo)
+  onBench: function (opener) {
+    openBench({ piece: "placa", opener: opener });
   }
+});
+document.getElementById("archBenchStart").addEventListener("click", function (event) {
+  openBench({ opener: event.currentTarget });
 });
 document.getElementById("archTopicsStart").addEventListener("click", function (event) {
   openTopic(null, event.currentTarget);

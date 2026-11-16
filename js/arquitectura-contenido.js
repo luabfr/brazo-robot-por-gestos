@@ -530,6 +530,89 @@ export var SCENARIOS = [
   }
 ];
 
+// ================= Capturas de las páginas reales («Así se ve») =================
+// Las imágenes y la posición de cada marca las genera tools/capturas.mjs (assets/capturas/capturas.json),
+// con datos de ejemplo. Acá van los textos: por componente del diagrama, qué captura mostrar y qué explica
+// cada número (spot = id de la marca en capturas.json). page: captura de la página completa
+export var CAPTURES = {
+  mediapipe: [
+    {
+      image: "emisor-camara", page: "emisor", title: "La cámara del alumno",
+      alt: "Captura del emisor: la webcam muestra a una persona con las dos manos abiertas y los nodos de cada mano dibujados encima",
+      notes: [
+        { spot: "nodos", text: "Los 21 nodos de cada mano que encuentra MediaPipe, unidos como un esqueleto." },
+        { spot: "meta", text: "Cuántas manos ve, a cuántos cuadros por segundo y si trabaja con la GPU o la CPU." },
+        { spot: "datos", text: "La punta del índice de cada mano: x e y de 0 a 1 y la profundidad respecto de la muñeca." }
+      ]
+    }
+  ],
+  emisor: [
+    {
+      image: "emisor-conexion", page: "emisor", title: "Conexión y control",
+      alt: "Captura del emisor: conectado al broker como «ana», con la marca «Tienes el control»",
+      notes: [
+        { spot: "estado", text: "Conectado al broker, con su alias y su sala." },
+        { spot: "control", text: "«Tienes el control»: el profesor eligió a este alumno y sus datos llegan al robot." },
+        { spot: "envio", text: "Mensajes por segundo: con la mano quieta, uno por segundo (el latido)." }
+      ]
+    },
+    {
+      image: "emisor-envio", page: "emisor", title: "Lo que se envía",
+      alt: "Captura del emisor: los valores de X, Y, dedos y gesto, y el mensaje de texto que se envía",
+      notes: [
+        { spot: "datos", text: "X e Y del punto de control (de 0 a 100), los dedos extendidos y el gesto reconocido." },
+        { spot: "mensaje", text: "La línea de texto que viaja por internet hasta el Arduino." }
+      ]
+    }
+  ],
+  visor: [
+    {
+      image: "emisor-brazo", page: "emisor", title: "El brazo, en vivo",
+      alt: "Captura del emisor: el video del brazo robot en vivo y, abajo, el estado que informa el Arduino",
+      notes: [
+        { spot: "video", text: "El brazo filmado por la cámara de la PC del profesor." },
+        { spot: "vivo", text: "«En vivo»: el video llega directo por WebRTC, sin pasar por el broker." },
+        { spot: "estado", text: "Lo que hizo el brazo de verdad, según el Arduino: dirección y ángulo de cada motor." }
+      ]
+    }
+  ],
+  receptor: [
+    {
+      image: "receptor-alumnos", page: "receptor", title: "Alumnos y control",
+      alt: "Captura del receptor: tres alumnos conectados (ana, beto y caro), ana con el control y sus datos recibidos",
+      notes: [
+        { spot: "lista", text: "Los alumnos conectados a la sala; el punto verde indica que están en línea." },
+        { spot: "control", text: "«Dar control» y «Quitar control»: un solo alumno a la vez mueve el robot." },
+        { spot: "datos", text: "Lo que llega del alumno con el control, ya validado." },
+        { spot: "mensaje", text: "El último mensaje recibido y cuántos llegan por segundo." }
+      ]
+    }
+  ],
+  webserial: [
+    {
+      image: "receptor-arduino", page: "receptor", title: "El Arduino, por USB",
+      alt: "Captura del receptor: Arduino conectado a 9600 baudios y el brazo moviéndose a la derecha",
+      notes: [
+        { spot: "puerto", text: "El puerto USB del Arduino: se autoriza una sola vez desde el navegador." },
+        { spot: "estado", text: "Conectado a 9600 baudios: los datos de la mano salen por el cable." },
+        { spot: "brazo", text: "La respuesta del sketch: hacia dónde se mueve el brazo y el ángulo de cada motor." }
+      ]
+    }
+  ],
+  camarabrazo: [
+    {
+      image: "receptor-camara", page: "receptor", title: "La cámara del brazo",
+      alt: "Captura del receptor: la cámara del brazo encendida, con el video del brazo robot",
+      notes: [
+        { spot: "boton", text: "Encender o apagar la cámara. Cada vez que se enciende, el ID y la clave del video cambian." },
+        { spot: "estado", text: "«Encendida»: los alumnos conectados ya la ven." },
+        { spot: "video", text: "Lo que filma la cámara, tal como sale de la PC del profesor." }
+      ]
+    }
+  ]
+};
+export var CAPTURE_PAGES = { emisor: "La página del alumno (emisor)", receptor: "La página del profesor (receptor)" };
+
 // ================= Temas a fondo (§7 del guion) =================
 // Textos de cada pestaña. Los números que dependen del código (tiempos, intervalos, tope del video, topics)
 // no van acá: los calcula js/arquitectura-temas.js importando config.js, protocol.js y mqtt-link.js

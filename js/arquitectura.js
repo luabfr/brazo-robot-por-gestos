@@ -13,6 +13,7 @@ import {
 } from "./arquitectura-contenido.js";
 import { initTopics, openTopic, closeTopics, isTopicsOpen, fillTimes } from "./arquitectura-temas.js";
 import { openBench, isBenchOpen } from "./arquitectura-3d.js";
+import { hasCaptures, buildCaptureSection, isCaptureOpen } from "./arquitectura-capturas.js";
 
 // Componentes del diagrama que tienen su pieza en el banco 3D
 var NODE_BENCH = { arduino: "placa", servos: "servo", brazo: "brazo", fuente: "fuente" };
@@ -1078,6 +1079,10 @@ function fillPanel(node) {
 
   panelBody.textContent = "";
   panelBody.appendChild(createElement("p", "arch-panel-lead", node.tooltip));
+  // Capturas de la página real, con marcas numeradas (solo los componentes que se ven en pantalla)
+  if (hasCaptures(node.id)) {
+    panelBody.appendChild(detailsSection("Así se ve", buildCaptureSection(node.id), true));
+  }
   panelBody.appendChild(detailsSection("Qué es", createElement("p", "", details.what), true));
   panelBody.appendChild(detailsSection("Por qué así", createElement("p", "", details.why), true));
   if (details.facts && details.facts.length) {
@@ -1534,8 +1539,8 @@ tourCard.addEventListener("keydown", function (event) {
 });
 
 document.addEventListener("keydown", function (event) {
-  // Con el banco 3D abierto, Escape lo cierra el propio diálogo y no toca nada de abajo
-  if (event.key === "Escape" && !isBenchOpen()) {
+  // Con el banco 3D o una captura ampliada abiertos, Escape lo maneja ese diálogo y no toca nada de abajo
+  if (event.key === "Escape" && !isBenchOpen() && !isCaptureOpen()) {
     hideTooltip();
     if (isTopicsOpen()) {
       closeTopics();

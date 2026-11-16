@@ -1,0 +1,88 @@
+{
+  "generated": "2026-11-16",
+  "note": "Capturas con datos de ejemplo, generadas con tools/capturas.mjs",
+  "images": {
+    "receptor": {
+      "file": "receptor.webp",
+      "width": 1440,
+      "height": 900,
+      "hotspots": {}
+    },
+    "receptor-alumnos": {
+      "file": "receptor-alumnos.webp",
+      "width": 1378,
+      "height": 931,
+      "hotspots": {
+        "lista": [3.9, 11.6, 92.2, 31.3],
+        "control": [77.9, 12.9, 18.1, 7.3],
+        "datos": [3.9, 65.7, 92.2, 18.9],
+        "mensaje": [3.9, 87.2, 92.2, 7]
+      }
+    },
+    "receptor-arduino": {
+      "file": "receptor-arduino.webp",
+      "width": 1378,
+      "height": 405,
+      "hotspots": {
+        "puerto": [3.9, 28.7, 92.2, 21.7],
+        "estado": [3.9, 54.4, 92.2, 10.7],
+        "brazo": [3.9, 69.1, 92.2, 17.6]
+      }
+    },
+    "receptor-camara": {
+      "file": "receptor-camara.webp",
+      "width": 1378,
+      "height": 1002,
+      "hotspots": {
+        "boton": [75.7, 12.1, 20.4, 8.8],
+        "estado": [63.1, 5.4, 33, 4.3],
+        "video": [3.9, 23.3, 92.2, 71.3]
+      }
+    },
+    "emisor": {
+      "file": "emisor.webp",
+      "width": 1440,
+      "height": 978,
+      "hotspots": {}
+    },
+    "emisor-camara": {
+      "file": "emisor-camara.webp",
+      "width": 1378,
+      "height": 793,
+      "hotspots": {
+        "nodos": [69.4, 42.4, 0, 0],
+        "meta": [76.4, 5, 20.7, 5.9],
+        "datos": [1.5, 64.4, 97.1, 33.1]
+      }
+    },
+    "emisor-conexion": {
+      "file": "emisor-conexion.webp",
+      "width": 1378,
+      "height": 430,
+      "hotspots": {
+        "estado": [39.9, 12.6, 56.2, 10.1],
+        "control": [23.8, 32.3, 19, 12.3],
+        "envio": [44.5, 33.4, 17.2, 10.1]
+      }
+    },
+    "emisor-envio": {
+      "file": "emisor-envio.webp",
+      "width": 1378,
+      "height": 526,
+      "hotspots": {
+        "datos": [3.9, 20.6, 92.2, 33.5],
+        "mensaje": [3.9, 58.7, 92.2, 12.5]
+      }
+    },
+    "emisor-brazo": {
+      "file": "emisor-brazo.webp",
+      "width": 1378,
+      "height": 793,
+      "hotspots": {
+        "video": [1.5, 2.5, 97.1, 95],
+        "vivo": [2.9, 5, 22, 6.1],
+        "estado": [3.2, 86.6, 71.8, 7.9]
+      }
+    }
+  }
+}
